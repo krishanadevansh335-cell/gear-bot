@@ -42,8 +42,15 @@ import {
   buildOnboardingExperiencePayload
 } from '../../dist/verification-ui.js';
 
-const { DISCORD_BOT_TOKEN: token, DISCORD_GUILD_ID: guildId, MOD_ROLE_ID: modRoleId } = process.env;
-if (!token || !guildId) throw new Error('Set DISCORD_BOT_TOKEN and DISCORD_GUILD_ID in .env');
+const token = process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || process.env.TOKEN;
+const guildId = process.env.DISCORD_GUILD_ID || process.env.GUILD_ID || process.env.SERVER_ID || process.env.DISCORD_SERVER_ID || '924325170972340264';
+const modRoleId = process.env.MOD_ROLE_ID || process.env.MODERATOR_ROLE_ID;
+
+if (!token) {
+  console.error('[STARTUP_ERROR] Missing Discord Bot Token!');
+  console.error('[STARTUP_ERROR] In Bot-Hosting.net: either add DISCORD_BOT_TOKEN in the Startup/Variables tab, or go to Files -> New File -> create a .env file with DISCORD_BOT_TOKEN=your_token');
+  throw new Error('Set DISCORD_BOT_TOKEN in .env or environment variables');
+}
 
 const client = new Client({
   intents: [
