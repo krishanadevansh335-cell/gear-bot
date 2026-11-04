@@ -672,6 +672,38 @@ client.on('interactionCreate', async interaction => {
     const customId = interaction.customId;
     const userId = interaction.user.id;
 
+    // Self-Assign Interactive Game & Platform Roles Toggle
+    if (customId.startsWith('gamer_role_toggle:')) {
+      await safeAcknowledge(interaction, 'reply');
+      const roleId = customId.split(':')[1];
+      try {
+        const member = await interaction.guild.members.fetch(userId);
+        const role = interaction.guild.roles.cache.get(roleId);
+        if (!role) {
+          await safeEditOrReply(interaction, { content: '❌ Game role not found on this server.', components: [] });
+          return;
+        }
+        const hasRole = member.roles.cache.has(roleId);
+        if (hasRole) {
+          await member.roles.remove(roleId);
+          await safeEditOrReply(interaction, {
+            content: `➖ **Role Removed:** You no longer have the **@${role.name}** role.`,
+            components: []
+          });
+        } else {
+          await member.roles.add(roleId);
+          await safeEditOrReply(interaction, {
+            content: `✅ **Role Assigned:** You now have the **@${role.name}** role! You will receive squad notifications and LFG pings for this title.`,
+            components: []
+          });
+        }
+      } catch (err) {
+        console.error('[GamerRoleToggleError]', err);
+        await safeEditOrReply(interaction, { content: `❌ Could not update role: ${err.message}`, components: [] });
+      }
+      return;
+    }
+
     // Co-op Channel Interactive Buttons (Role Toggle & LFG)
     if (customId.startsWith('coop_role_')) {
       await safeAcknowledge(interaction, 'reply');
