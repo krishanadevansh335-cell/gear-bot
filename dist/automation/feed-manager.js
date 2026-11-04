@@ -97,8 +97,14 @@ export class AutomationFeedService {
             return false; // Deduplication: already published
         }
         const config = this.db.getAutomationConfig("steam_deals");
-        const channelId = config?.channel_id || "1566922341769023603"; // #game-news
-        const channel = await this.client.channels.fetch(channelId);
+        const channelId = config?.channel_id;
+        let channel = null;
+        if (channelId) {
+            channel = await this.client.channels.fetch(channelId).catch(() => null);
+        }
+        if (!channel) {
+            channel = this.client.guilds.cache.first()?.channels.cache.find(c => c.name === "game-updates" || c.name === "game-news") || null;
+        }
         if (channel && channel.isTextBased()) {
             const { embed, components } = buildSteamDealEmbed(deal);
             const sent = await channel.send({ embeds: [embed], components });
@@ -115,8 +121,14 @@ export class AutomationFeedService {
             return false;
         }
         const config = this.db.getAutomationConfig("free_games");
-        const channelId = config?.channel_id || "1566922341769023603"; // #game-news
-        const channel = await this.client.channels.fetch(channelId);
+        const channelId = config?.channel_id;
+        let channel = null;
+        if (channelId) {
+            channel = await this.client.channels.fetch(channelId).catch(() => null);
+        }
+        if (!channel) {
+            channel = this.client.guilds.cache.first()?.channels.cache.find(c => c.name === "game-updates" || c.name === "game-news") || null;
+        }
         if (channel && channel.isTextBased()) {
             const { embed, components } = buildFreeGameEmbed(freebie);
             const sent = await channel.send({ embeds: [embed], components });
@@ -134,8 +146,14 @@ export class AutomationFeedService {
             return false;
         }
         const config = this.db.getAutomationConfig("community_report");
-        const channelId = config?.channel_id || "1566922320130351275"; // #server-updates
-        const channel = await this.client.channels.fetch(channelId);
+        const channelId = config?.channel_id;
+        let channel = null;
+        if (channelId) {
+            channel = await this.client.channels.fetch(channelId).catch(() => null);
+        }
+        if (!channel) {
+            channel = this.client.guilds.cache.first()?.channels.cache.find(c => c.name === "game-updates" || c.name === "server-updates") || null;
+        }
         if (channel && channel.isTextBased()) {
             const { embed } = buildCommunityReportEmbed(report);
             const sent = await channel.send({ embeds: [embed] });

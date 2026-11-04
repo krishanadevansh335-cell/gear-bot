@@ -236,9 +236,9 @@ export async function handleGameCommands(interaction, gameManager) {
                 role_name: customRole,
                 role_color: color
             });
-            // Provision immediately since moderator added it
-            const res = await gameManager.provisionGameResources(slug, { createVoice: true });
-            await interaction.editReply(`✅ Successfully added **${name}** and provisioned text channel #${res.game.slug} and voice channel in ${res.categoryName}.`);
+            // Add role without creating separate channels
+            await gameManager.addMemberToGame(interaction.user.id, slug, "PC", "Casual").catch(() => { });
+            await interaction.editReply(`✅ Successfully added **${name}** to directory and assigned role **@${customRole || name + " Squad"}**.`);
             break;
         }
         case "approve": {
@@ -262,10 +262,9 @@ export async function handleGameCommands(interaction, gameManager) {
                 });
             }
             db.resolveGameRequest(reqId, "approved", interaction.user.id, "Approved by moderator");
-            const provRes = await gameManager.provisionGameResources(slug, { createVoice: true });
-            // Add requester to game
+            // Add requester to game role
             await gameManager.addMemberToGame(targetReq.requested_by_user_id, slug, "PC", "Intermediate").catch(() => { });
-            await interaction.editReply(`✅ Approved Request #${reqId}! Provisioned channels for **${game.name}** in ${provRes.categoryName}.`);
+            await interaction.editReply(`✅ Approved Request #${reqId}! Added **${game.name}** and assigned role to requester.`);
             break;
         }
         case "sync": {

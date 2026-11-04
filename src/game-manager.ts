@@ -220,12 +220,27 @@ export class DynamicGameManager {
     // Record profile in SQLite
     this.db.recordMemberGame(userId, game.slug, platform, skill);
 
-    // Provision game resources on-demand (channels & role)
-    const prov = await this.provisionGameResources(game.slug, { createVoice: true });
+    // Ensure game role exists without creating new channels
+    let role = this.guild.roles.cache.find((r) => r.name.toLowerCase() === game.role_name.toLowerCase());
+    if (!role) {
+      role = await this.guild.roles.create({
+        name: game.role_name,
+        color: (game.role_color || "#3498DB") as ColorResolvable,
+        hoist: false,
+        mentionable: true,
+        permissions: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.Connect,
+          PermissionFlagsBits.Speak
+        ]
+      });
+      this.db.updateGameDiscordResources(game.slug, { role_id: role.id });
+    }
 
     // Assign Role to member
     const member = await this.guild.members.fetch(userId);
-    const role = this.guild.roles.cache.find((r) => r.name.toLowerCase() === game.role_name.toLowerCase());
     if (role && !member.roles.cache.has(role.id)) {
       await member.roles.add(role);
     }
@@ -238,7 +253,7 @@ export class DynamicGameManager {
 
     return {
       success: true,
-      message: `Assigned role '${role?.name}' and provisioned #${prov.game.slug}.`,
+      message: `Assigned role '${role?.name}'. Connect with players in the shared category channel!`,
       roleAdded: role?.name || game.role_name
     };
   }

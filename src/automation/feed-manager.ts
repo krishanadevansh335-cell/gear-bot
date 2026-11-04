@@ -159,8 +159,14 @@ export class AutomationFeedService {
     }
 
     const config = this.db.getAutomationConfig("steam_deals");
-    const channelId = config?.channel_id || "1566922341769023603"; // #game-news
-    const channel = await this.client.channels.fetch(channelId) as TextChannel | null;
+    const channelId = config?.channel_id;
+    let channel: TextChannel | null = null;
+    if (channelId) {
+      channel = await this.client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
+    }
+    if (!channel) {
+      channel = (this.client.guilds.cache.first()?.channels.cache.find(c => c.name === "game-updates" || c.name === "game-news") as TextChannel | null) || null;
+    }
 
     if (channel && channel.isTextBased()) {
       const { embed, components } = buildSteamDealEmbed(deal);
@@ -180,8 +186,14 @@ export class AutomationFeedService {
     }
 
     const config = this.db.getAutomationConfig("free_games");
-    const channelId = config?.channel_id || "1566922341769023603"; // #game-news
-    const channel = await this.client.channels.fetch(channelId) as TextChannel | null;
+    const channelId = config?.channel_id;
+    let channel: TextChannel | null = null;
+    if (channelId) {
+      channel = await this.client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
+    }
+    if (!channel) {
+      channel = (this.client.guilds.cache.first()?.channels.cache.find(c => c.name === "game-updates" || c.name === "game-news") as TextChannel | null) || null;
+    }
 
     if (channel && channel.isTextBased()) {
       const { embed, components } = buildFreeGameEmbed(freebie);
@@ -202,8 +214,14 @@ export class AutomationFeedService {
     }
 
     const config = this.db.getAutomationConfig("community_report");
-    const channelId = config?.channel_id || "1566922320130351275"; // #server-updates
-    const channel = await this.client.channels.fetch(channelId) as TextChannel | null;
+    const channelId = config?.channel_id;
+    let channel: TextChannel | null = null;
+    if (channelId) {
+      channel = await this.client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
+    }
+    if (!channel) {
+      channel = (this.client.guilds.cache.first()?.channels.cache.find(c => c.name === "game-updates" || c.name === "server-updates") as TextChannel | null) || null;
+    }
 
     if (channel && channel.isTextBased()) {
       const { embed } = buildCommunityReportEmbed(report);
