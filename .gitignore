@@ -1,0 +1,32 @@
+# Environment & Secrets (NEVER COMMIT SENSITIVE TOKENS)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build Output
+dist/
+
+# Persistent SQLite Databases & Dynamic Runtime Data
+*.db
+*.db-journal
+*.sqlite
+data/
+**/data/
+
+# Logs
+logs/
+*.log
+
+# Backups & Temporary Scratch Files
+backups/
+scratch/
+*.exe
+.DS_Store
+Thumbs.db

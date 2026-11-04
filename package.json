@@ -1,0 +1,50 @@
+{
+  "name": "gear-bot",
+  "version": "1.0.0",
+  "description": "Gamer Gear: All-in-one Discord gaming community bot with native onboarding integration, verification wall, and profile progression",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "discord-mcp": "./dist/index.js",
+    "discord-mcp-http": "./dist/http-server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prestart": "npm run build",
+    "start": "node discord-gaming-verification/src/index.js",
+    "start:bot": "node discord-gaming-verification/src/index.js",
+    "start:mcp": "node dist/index.js",
+    "start:http": "node dist/http-server.js",
+    "provision": "node dist/provision-cli.js",
+    "provision:preview": "node dist/provision-cli.js --preview",
+    "arch:preview": "node dist/bot-architecture-cli.js --preview",
+    "arch:apply": "node dist/bot-architecture-cli.js",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "keywords": [
+    "mcp",
+    "discord",
+    "claude",
+    "antigravity",
+    "chatgpt",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "@napi-rs/canvas": "^1.1.0",
+    "discord.js": "^14.17.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "omggif": "^1.0.10",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "@types/omggif": "^1.0.5",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "discord-ai-control": {
+      "command": "node",
+      "args": [
+        "c:/Users/krisd/discord-ai-control/dist/index.js"
+      ],
+      "env": {
+        "DISCORD_BOT_TOKEN": "YOUR_DISCORD_BOT_TOKEN",
+        "DISCORD_GUILD_ID": "YOUR_DISCORD_GUILD_ID"
+      }
+    }
+  }
+}
+

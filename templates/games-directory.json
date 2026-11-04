@@ -1,0 +1,145 @@
+{
+  "categories": [
+    {
+      "id": "fps_competitive",
+      "name": "FPS & Competitive",
+      "maxChannels": 20,
+      "defaultVoiceRooms": ["Apex Squad VC", "Competitive VC"],
+      "games": [
+        { "name": "Apex Legends", "slug": "apex-legends", "role": "Apex Squad", "color": "#E74C3C" },
+        { "name": "Valorant", "slug": "valorant", "role": "Valorant Squad", "color": "#FD4556" },
+        { "name": "Counter-Strike 2", "slug": "cs2", "role": "CS2 Crew", "color": "#DE9B35" },
+        { "name": "Call of Duty: Warzone", "slug": "cod-warzone", "role": "Warzone Squad", "color": "#4A6984" },
+        { "name": "Overwatch 2", "slug": "overwatch-2", "role": "Overwatch Squad", "color": "#F99E1A" },
+        { "name": "Rainbow Six Siege", "slug": "rainbow-six-siege", "role": "Siege Operatives", "color": "#2C3E50" },
+        { "name": "PUBG: Battlegrounds", "slug": "pubg", "role": "PUBG Survivors", "color": "#F39C12" },
+        { "name": "Fortnite", "slug": "fortnite", "role": "Fortnite Squad", "color": "#9B59B6" },
+        { "name": "THE FINALS", "slug": "the-finals", "role": "Finals Contestants", "color": "#E67E22" },
+        { "name": "Marvel Rivals", "slug": "marvel-rivals", "role": "Rivals Squad", "color": "#C0392B" },
+        { "name": "Battlefield 6", "slug": "battlefield-6", "role": "Battlefield Squad", "color": "#34495E" },
+        { "name": "Escape from Tarkov", "slug": "escape-from-tarkov", "role": "Tarkov PMCs", "color": "#7F8C8D" },
+        { "name": "Delta Force", "slug": "delta-force", "role": "Delta Force Squad", "color": "#16A085" },
+        { "name": "PUBG Mobile", "slug": "pubg-mobile", "role": "PUBG Mobile Squad", "color": "#D35400" },
+        { "name": "Call of Duty: Mobile", "slug": "cod-mobile", "role": "COD Mobile Squad", "color": "#27AE60" }
+      ]
+    },
+    {
+      "id": "survival_sandbox",
+      "name": "Survival & Sandbox",
+      "maxChannels": 25,
+      "defaultVoiceRooms": ["Survival VC", "Building VC"],
+      "games": [
+        { "name": "Palworld", "slug": "palworld", "role": "Pal Tamers", "color": "#3498DB" },
+        { "name": "Minecraft", "slug": "minecraft", "role": "Crafters & Miners", "color": "#2ECC71" },
+        { "name": "Enshrouded", "slug": "enshrouded", "role": "Flameborn", "color": "#E67E22" },
+        { "name": "Valheim", "slug": "valheim", "role": "Viking Clan", "color": "#D35400" },
+        { "name": "ARK: Survival Ascended", "slug": "ark-survival", "role": "Tribe Members", "color": "#1ABC9C" },
+        { "name": "Rust", "slug": "rust", "role": "Rust Survivors", "color": "#A0522D" },
+        { "name": "Sons of the Forest", "slug": "sons-of-the-forest", "role": "Island Explorers", "color": "#27AE60" },
+        { "name": "The Forest", "slug": "the-forest", "role": "Forest Survivors", "color": "#1E8449" },
+        { "name": "Terraria", "slug": "terraria", "role": "Terrarians", "color": "#8E44AD" },
+        { "name": "Don't Starve Together", "slug": "dont-starve-together", "role": "DST Survivors", "color": "#795548" },
+        { "name": "Grounded", "slug": "grounded", "role": "Backyard Explorers", "color": "#F1C40F" },
+        { "name": "7 Days to Die", "slug": "7-days-to-die", "role": "Zombie Hunters", "color": "#C0392B" },
+        { "name": "Project Zomboid", "slug": "project-zomboid", "role": "Knox Survivors", "color": "#5D6D7E" },
+        { "name": "Once Human", "slug": "once-human", "role": "Metas", "color": "#5499C7" },
+        { "name": "Raft", "slug": "raft", "role": "Raft Sailors", "color": "#2980B9" },
+        { "name": "V Rising", "slug": "v-rising", "role": "Vampire Clan", "color": "#884EA0" },
+        { "name": "DayZ", "slug": "dayz", "role": "Chernarus Survivors", "color": "#626567" },
+        { "name": "Subnautica", "slug": "subnautica", "role": "Ocean Divers", "color": "#00BCD4" },
+        { "name": "Core Keeper", "slug": "core-keeper", "role": "Cave Explorers", "color": "#CDDC39" },
+        { "name": "Abiotic Factor", "slug": "abiotic-factor", "role": "GATE Scientists", "color": "#FF9800" }
+      ]
+    },
+    {
+      "id": "rpg_adventure",
+      "name": "RPG & Adventure",
+      "maxChannels": 20,
+      "defaultVoiceRooms": ["RPG Party VC", "Boss Hunt VC"],
+      "games": [
+        { "name": "Monster Hunter Wilds", "slug": "monster-hunter-wilds", "role": "Wilds Hunters", "color": "#B7950B" },
+        { "name": "Monster Hunter World", "slug": "monster-hunter-world", "role": "Fleet Hunters", "color": "#AF601A" },
+        { "name": "Monster Hunter Rise", "slug": "monster-hunter-rise", "role": "Kamura Hunters", "color": "#BA4A00" },
+        { "name": "Warframe", "slug": "warframe", "role": "Tenno", "color": "#BDC3C7" },
+        { "name": "Destiny 2", "slug": "destiny-2", "role": "Guardians", "color": "#ECF0F1" },
+        { "name": "Elden Ring (co-op)", "slug": "elden-ring", "role": "Tarnished", "color": "#D4AC0D" },
+        { "name": "Elden Ring Nightreign", "slug": "nightreign", "role": "Nightreign Order", "color": "#5B2C6F" },
+        { "name": "Diablo IV", "slug": "diablo-4", "role": "Wanderers", "color": "#922B21" },
+        { "name": "Path of Exile 2", "slug": "poe-2", "role": "Exiles", "color": "#6E2C00" },
+        { "name": "Final Fantasy XIV", "slug": "ffxiv", "role": "Warriors of Light", "color": "#5DADE2" },
+        { "name": "Throne and Liberty", "slug": "throne-and-liberty", "role": "Castellan", "color": "#48C9B0" },
+        { "name": "Guild Wars 2", "slug": "guild-wars-2", "role": "Tyrians", "color": "#E74C3C" },
+        { "name": "Black Desert Online", "slug": "bdo", "role": "Black Desert Adventurers", "color": "#1F618D" },
+        { "name": "Lost Ark", "slug": "lost-ark", "role": "Arkesians", "color": "#117864" },
+        { "name": "The First Descendant", "slug": "the-first-descendant", "role": "Descendants", "color": "#7D3C98" },
+        { "name": "Genshin Impact (co-op)", "slug": "genshin-impact", "role": "Travelers", "color": "#F4D03F" },
+        { "name": "Wuthering Waves (co-op)", "slug": "wuthering-waves", "role": "Rovers", "color": "#45B39D" }
+      ]
+    },
+    {
+      "id": "coop_horror",
+      "name": "Co-op & Horror",
+      "maxChannels": 20,
+      "defaultVoiceRooms": ["Co-op VC", "Horror VC"],
+      "games": [
+        { "name": "Phasmophobia", "slug": "phasmophobia", "role": "Ghost Hunters", "color": "#566573" },
+        { "name": "Lethal Company", "slug": "lethal-company", "role": "Company Employees", "color": "#E67E22" },
+        { "name": "Helldivers 2", "slug": "helldivers-2", "role": "Helldivers", "color": "#F1C40F" },
+        { "name": "Deep Rock Galactic", "slug": "deep-rock-galactic", "role": "Miners (Rock & Stone)", "color": "#D35400" },
+        { "name": "Sea of Thieves", "slug": "sea-of-thieves", "role": "Pirates", "color": "#1ABC9C" },
+        { "name": "It Takes Two", "slug": "it-takes-two", "role": "Duo Partners", "color": "#2ECC71" },
+        { "name": "A Way Out", "slug": "a-way-out", "role": "Prison Breakers", "color": "#34495E" },
+        { "name": "Content Warning", "slug": "content-warning", "role": "SpookTube Creators", "color": "#E74C3C" },
+        { "name": "Ready or Not", "slug": "ready-or-not", "role": "SWAT Operators", "color": "#2C3E50" },
+        { "name": "Payday 3", "slug": "payday-3", "role": "Heisters", "color": "#922B21" },
+        { "name": "Left 4 Dead 2", "slug": "l4d2", "role": "L4D Survivors", "color": "#78281F" },
+        { "name": "Back 4 Blood", "slug": "back-4-blood", "role": "Cleaners", "color": "#943126" },
+        { "name": "Dying Light 2", "slug": "dying-light-2", "role": "Pilgrims", "color": "#B03A2E" },
+        { "name": "Remnant II", "slug": "remnant-2", "role": "Remnant Travelers", "color": "#7B7D7D" },
+        { "name": "Borderlands 3", "slug": "borderlands-3", "role": "Vault Hunters", "color": "#F39C12" },
+        { "name": "Human: Fall Flat", "slug": "human-fall-flat", "role": "Bob Squad", "color": "#BDC3C7" },
+        { "name": "PlateUp!", "slug": "plateup", "role": "Master Chefs", "color": "#E67E22" },
+        { "name": "Overcooked! 2", "slug": "overcooked-2", "role": "Onion Kingdom Chefs", "color": "#27AE60" }
+      ]
+    },
+    {
+      "id": "racing_sports",
+      "name": "Racing & Sports",
+      "maxChannels": 15,
+      "defaultVoiceRooms": ["Racing VC", "Sports VC"],
+      "games": [
+        { "name": "Forza Horizon 5", "slug": "forza-horizon-5", "role": "Horizon Drivers", "color": "#FF5722" },
+        { "name": "Forza Motorsport", "slug": "forza-motorsport", "role": "Motorsport Racers", "color": "#E91E63" },
+        { "name": "The Crew Motorfest", "slug": "crew-motorfest", "role": "Motorfest Racers", "color": "#9C27B0" },
+        { "name": "Rocket League", "slug": "rocket-league", "role": "RL Strikers", "color": "#2196F3" },
+        { "name": "EA Sports FC 26", "slug": "ea-fc-26", "role": "FC Players", "color": "#4CAF50" },
+        { "name": "F1 25", "slug": "f1-25", "role": "F1 Drivers", "color": "#F44336" },
+        { "name": "Trackmania", "slug": "trackmania", "role": "Trackmania Racers", "color": "#00BCD4" },
+        { "name": "Assetto Corsa Competizione", "slug": "acc", "role": "Sim Racers", "color": "#607D8B" },
+        { "name": "Fall Guys", "slug": "fall-guys", "role": "Bean Champions", "color": "#E91E63" },
+        { "name": "Golf With Your Friends", "slug": "golf-with-friends", "role": "Golfers", "color": "#8BC34A" }
+      ]
+    },
+    {
+      "id": "strategy_party",
+      "name": "Strategy & Party",
+      "maxChannels": 15,
+      "defaultVoiceRooms": ["Party VC", "Strategy VC"],
+      "games": [
+        { "name": "Among Us", "slug": "among-us", "role": "Crewmates & Impostors", "color": "#E74C3C" },
+        { "name": "GTA Online", "slug": "gta-online", "role": "Los Santos Criminals", "color": "#27AE60" },
+        { "name": "Red Dead Online", "slug": "red-dead-online", "role": "Outlaws", "color": "#C0392B" },
+        { "name": "Civilization VI", "slug": "civ-6", "role": "World Leaders", "color": "#D4AC0D" },
+        { "name": "Age of Empires IV", "slug": "aoe-4", "role": "Empire Commanders", "color": "#BA4A00" },
+        { "name": "Stardew Valley", "slug": "stardew-valley", "role": "Valley Farmers", "color": "#52BE80" },
+        { "name": "Garry's Mod", "slug": "garrys-mod", "role": "GMod Sandboxers", "color": "#2980B9" },
+        { "name": "Roblox", "slug": "roblox", "role": "Robloxian Squad", "color": "#E74C3C" },
+        { "name": "Tabletop Simulator", "slug": "tabletop-simulator", "role": "Board Gamers", "color": "#9B59B6" },
+        { "name": "Pummel Party", "slug": "pummel-party", "role": "Pummel Fighters", "color": "#F39C12" },
+        { "name": "Brawlhalla", "slug": "brawlhalla", "role": "Valhalla Brawlers", "color": "#F1C40F" },
+        { "name": "Supermarket Together", "slug": "supermarket-together", "role": "Store Clerks", "color": "#1ABC9C" }
+      ]
+    }
+  ]
+}
+

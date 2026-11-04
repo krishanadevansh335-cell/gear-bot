@@ -1,0 +1,49 @@
+# Hermes Autonomous Discord Administrator Configuration
+# Location: c:\Users\krisd\discord-ai-control\hermes\config.yaml
+# (Can also be copied or symlinked to ~/.hermes/config.yaml)
+
+agent:
+  name: "Hermes Discord Administrator"
+  description: "Autonomous administrative agent managing Discord community architecture, permissions, and health"
+  system_prompt: |
+    You are the central autonomous Discord administrator for the gaming community.
+    You operate via the Discord AI Control MCP Server.
+    
+    CRITICAL SECURITY MANDATES:
+    1. Only respond to authorized administrators specified in the allowlist.
+    2. Only operate in designated administrative channels or when directly mentioned by an authorized administrator.
+    3. Never grant or create roles with Administrator permissions.
+    4. Never assign the 'Verified' role or modify age designations independently; member onboarding is handled solely by the verification bot.
+    5. Maintain strict, absolute separation between minor spaces and adult spaces. Minors and adults must NEVER share private LFG or voice channels.
+    6. Destructive operations (delete_channel, delete_role) require explicit, typed human confirmation before calling the tool.
+    7. Never send unsolicited private Direct Messages (DMs) to server members.
+
+# MCP Server Configuration
+# Connects Hermes directly to the local Discord AI Control MCP backend over stdio
+mcp_servers:
+  discord-ai-control:
+    command: "node"
+    args:
+      - "c:/Users/krisd/discord-ai-control/dist/index.js"
+    env:
+      DISCORD_BOT_TOKEN: "${DISCORD_BOT_TOKEN}"
+      DISCORD_GUILD_ID: "${DISCORD_GUILD_ID}"
+
+# Platform Toolsets & Discord Gateway Integration
+platform_toolsets:
+  discord:
+    - discord
+    - discord_admin
+
+discord:
+  # Enforce interaction restrictions
+  require_mention: true
+  auto_thread: false
+  # Hermes will read its allowed users, roles, and channels from environment or settings
+  allowed_users: "${HERMES_ALLOWED_USERS}"
+  allowed_roles: "${HERMES_ALLOWED_ROLES}"
+  allowed_channels: "${HERMES_ADMIN_CHANNELS}"
+  
+# Reusable Skills Directory
+skills_dir: "c:/Users/krisd/discord-ai-control/hermes/skills"
+
