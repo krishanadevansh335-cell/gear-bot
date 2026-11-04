@@ -133,7 +133,7 @@ function scheduleTimers(guild, userId) {
     const cur = db.getVerificationSession(guild.id, userId);
     if (!cur || cur.status === 'completed' || cur.status === 'review') return;
     db.updateVerificationSession(guild.id, userId, { reminded: true });
-    const ch = guild.channels.cache.find(c => c.name === names.verify);
+    const ch = guild.channels.cache.get('1566854065688813688') || guild.channels.cache.find(c => c.name.includes('erify'));
     await ch?.send({
       content: `👋 <@${userId}> Your verification is still waiting. Click the **Start Verification** button in <#${ch.id}> whenever you're ready!`,
       allowedMentions: { parse: [], users: [userId] }
@@ -159,9 +159,9 @@ async function begin(member) {
   }
   scheduleTimers(guild, member.id);
 
-  const verifyCh = guild.channels.cache.find(c => c.name === names.verify);
-  const rulesCh = guild.channels.cache.find(c => c.name === names.rules);
-  const welcomeCh = guild.channels.cache.find(c => c.name === 'welcome');
+  const verifyCh = guild.channels.cache.get('1566854065688813688') || guild.channels.cache.find(c => c.name.includes('erify'));
+  const rulesCh = guild.channels.cache.get('924522829490323516') || guild.channels.cache.find(c => c.name.includes('ules'));
+  const welcomeCh = guild.channels.cache.get('924522763396468736') || guild.channels.cache.find(c => c.name.includes('elcome'));
 
   const avatarUrl = member.user?.displayAvatarURL ? member.user.displayAvatarURL({ size: 256 }) : undefined;
   const guildIcon = guild.iconURL ? guild.iconURL({ size: 128 }) : undefined;
@@ -800,7 +800,7 @@ client.on('interactionCreate', async interaction => {
       await safeAcknowledge(interaction, 'reply');
       const slug = customId.replace('coop_lfg_', '');
       const g = db.getGameBySlug(slug);
-      const lfgCh = interaction.guild.channels.cache.find(c => c.name === 'looking-for-group');
+      const lfgCh = interaction.guild.channels.cache.get('1567553522403385425') || interaction.guild.channels.cache.find(c => c.name.includes('ooking'));
       const roleMention = g?.role_id ? `<@&${g.role_id}>` : `@${g?.role_name || slug}`;
       await safeEditOrReply(interaction, {
         content: `🎮 Looking for **${g?.name || slug}** teammates? Head over to <#${lfgCh?.id || '1566922336404246568'}> and ping ${roleMention} to squad up!`,
@@ -1698,7 +1698,7 @@ client.once('clientReady', async () => {
 
 async function pollLiveGameDeals(guild) {
   try {
-    const updateCh = guild.channels.cache.find(c => c.name === 'game-updates' || c.name === 'game-news');
+    const updateCh = guild.channels.cache.get('1566922320130351275') || guild.channels.cache.find(c => c.name.includes('update') || c.name.includes('news'));
     if (!updateCh || !updateCh.isTextBased()) return;
 
     // Fetch recent messages to prevent duplicate postings even across restarts or fresh DBs
