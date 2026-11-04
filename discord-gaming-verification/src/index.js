@@ -2048,69 +2048,127 @@ async function pollPCHardwareDeals(guild) {
     const pcDealsCh = guild.channels.cache.get('1567632410135371887') || guild.channels.cache.find(c => c.name.includes('ear-'));
     if (!pcDealsCh || !pcDealsCh.isTextBased()) return;
 
-    const res = await fetch('https://www.reddit.com/r/buildapcsales/new.rss', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
-      }
-    });
-
-    if (!res.ok) return;
-    const xml = await res.text();
-    const matches = xml.match(/<entry>[\s\S]*?<\/entry>/g) || [];
-
     // Fetch recent messages to prevent duplicates
     const recentMessages = await pcDealsCh.messages.fetch({ limit: 25 }).catch(() => null);
 
-    for (const m of matches.slice(0, 5)) {
-      const id = (m.match(/<id>([\s\S]*?)<\/id>/)?.[1] || '').trim();
-      const rawTitle = (m.match(/<title>([\s\S]*?)<\/title>/)?.[1] || '').replace(/&amp;/g, '&');
-      const link = m.match(/<link href="([^"]+)"/)?.[1] || '';
+    const dealSources = ['desidime', 'laptop_loot_deals', 'DealBee'];
 
-      if (!id || !rawTitle) continue;
+    for (const source of dealSources) {
+      try {
+        const res = await fetch(`https://t.me/s/${source}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+          }
+        });
+        if (!res.ok) continue;
 
-      const inDb = db.hasAutomationFeed('pc_deal', id);
-      const inChannel = recentMessages && recentMessages.some(msg =>
-        msg.embeds.some(e => e.title && e.title.includes(rawTitle.slice(0, 50)))
-      );
+        const html = await res.text();
+        const rawMsgs = html.match(/<div class="tgme_widget_message_wrap[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/g) || [];
 
-      if (!inDb && !inChannel) {
-        const tagMatch = rawTitle.match(/\[(.*?)\]/);
-        const tag = tagMatch ? tagMatch[1].toUpperCase() : 'HARDWARE';
-        const cleanTitle = rawTitle.replace(/\[.*?\]\s*/, '');
+        for (const m of rawMsgs.slice(-10)) {
+          const idMatch = m.match(/data-post="([^"]+)"/);
+          const id = idMatch ? idMatch[1] : '';
+          const textMatch = m.match(/<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/);
+          if (!id || !textMatch) continue;
 
-        const embed = new EmbedBuilder()
-          .setColor(0x10B981) // Emerald Green
-          .setAuthor({ name: `GAMER GEAR // HARDWARE DEAL • [${tag}]`, iconURL: 'https://www.redditstatic.com/desktop2x/img/favicon/android-icon-192x192.png' })
-          .setTitle(`🔥 [${tag}] ${cleanTitle.slice(0, 240)}`)
-          .setDescription([
-            `Verified hardware sale detected on **r/buildapcsales**:`,
-            '',
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-            `• **Category:** \`[${tag}]\``,
-            `• **Status:** Active Community Deal`,
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-          ].join('\n'))
-          .setFooter({ text: 'GAMING SHAMING • Real-Time PC Hardware Hunter' })
-          .setTimestamp();
+          const rawHtml = textMatch[1];
+          const lines = rawHtml.split(/<br\s*\/?>/gi).map(l => l.replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+          const fullText = lines.join(' ');
 
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setLabel('🛒 View Deal on Reddit')
-            .setStyle(ButtonStyle.Link)
-            .setURL(link)
-            .setEmoji('🔗')
-        );
+          // Skip non-deal or meta posts
+          if (/Top 5|Threads Today|Daily Rewards|Channel photo|Channel created/i.test(fullText)) continue;
+          if (/kurta|dress|saree|shampoo|dinner set|facial tissue|sauce pan|suitcase|trolley|refrigerator|shoes|sneakers|deodorant|jeans|shirt|pants|underwear|bra|towel|blanket/i.test(fullText)) continue;
 
-        const sent = await pcDealsCh.send({ embeds: [embed], components: [row] });
-        db.recordAutomationFeed('pc_deal', id, cleanTitle, { tag, link }, pcDealsCh.id, sent.id);
-        console.log(`[PC_DEALS] Published new hardware deal: [${tag}] "${cleanTitle}" (${id})`);
-        break; // Post 1 new deal per interval to avoid channel spam
-      } else if (!inDb) {
-        db.recordAutomationFeed('pc_deal', id, rawTitle, {}, pcDealsCh.id, 'channel_duplicate');
+          // 1. Discount filter: Strict >= 45% OFF
+          const pctMatch = fullText.match(/(\d+)%\s*(?:off|discount)/i) || fullText.match(/(?:off|discount)[:\s]*(\d+)%/i);
+          const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
+          if (!pct || pct < 45) continue;
+
+          // 2. Tech / Gaming hardware filter
+          const techRegex = /\b(pc|gaming|laptop|keyboard|mouse|headset|headphone|earbuds|monitor|gpu|cpu|ram|ssd|nvme|motherboard|controller|oled|ips|qled|soundbar|speaker|tv|logitech|razer|zebronics|aoc|corsair|lenovo|asus|acer|msi|hp|dell|ryzen|intel|rtx)\b/i;
+          if (!techRegex.test(fullText)) continue;
+
+          // 3. Price in INR (₹ or Rs)
+          const priceMatch = fullText.match(/[₹Rs\.]+\s*([\d,]+)/i);
+          const price = priceMatch ? priceMatch[1] : 'Special Price';
+
+          // 4. Extract link
+          const linkMatches = m.match(/href="([^"]+)"/g) || [];
+          const links = linkMatches.map(l => l.replace(/href="|"/g, '')).filter(l => !l.includes('t.me') && !l.includes('telegram.org'));
+          let buyLink = links.find(l => l.includes('buy') || l.includes('amzn') || l.includes('amazon') || l.includes('fkrt') || l.includes('flipkart') || l.includes('ddime.in')) || links[0];
+          if (!buyLink) continue;
+
+          // Store detection: Amazon India vs Flipkart vs India Retailer
+          let store = 'India Deal';
+          let storeColor = 0x10B981; // Emerald
+          let storeEmoji = '🛒';
+          let storeIcon = 'https://cdn-icons-png.flaticon.com/512/879/879757.png';
+
+          if (/amazon|amzn/i.test(fullText) || /amazon|amzn/i.test(buyLink)) {
+            store = 'Amazon India';
+            storeColor = 0xFF9900; // Amazon Orange
+            storeEmoji = '📦';
+            storeIcon = 'https://upload.wikimedia.org/wikipedia/commons/4/4a/Amazon_icon.svg';
+          } else if (/flipkart|fkrt/i.test(fullText) || /flipkart|fkrt/i.test(buyLink)) {
+            store = 'Flipkart';
+            storeColor = 0x2874F0; // Flipkart Blue
+            storeEmoji = '⚡';
+            storeIcon = 'https://cdn.iconscout.com/icon/free/png-512/free-flipkart-226594.png';
+          }
+
+          const inDb = db.hasAutomationFeed('india_deal', id);
+          const cleanTitle = lines[0].replace(/^[^\p{L}\p{N}\s]+/gu, '').trim().slice(0, 200);
+
+          const inChannel = recentMessages && recentMessages.some(msg =>
+            msg.embeds.some(e => e.title && e.title.includes(cleanTitle.slice(0, 40)))
+          );
+
+          if (!inDb && !inChannel) {
+            const summaryPoints = lines.slice(1, 4).filter(l => !l.startsWith('http') && !l.includes('Read More')).map(l => `• ${l}`).join('\n') || '• Verified Indian marketplace gaming hardware discount.';
+
+            const embed = new EmbedBuilder()
+              .setColor(storeColor)
+              .setAuthor({ name: `GAMER GEAR // INDIA GAMING RADAR • [${store.toUpperCase()}]`, iconURL: storeIcon })
+              .setTitle(`🔥 [${store} • ${pct}% OFF] ${cleanTitle}`)
+              .setDescription([
+                `Verified **45%+ discount** on gaming gear & PC components:`,
+                '',
+                '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+                `• 💰 **Deal Price:** \`₹${price}\``,
+                `• 🏷️ **Discount:** **${pct}% OFF** (Loot Sale)`,
+                `• 🏪 **Marketplace:** **${store}**`,
+                '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+                '',
+                '### 📦 Specifications & Highlights:',
+                summaryPoints,
+                '',
+                '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+              ].join('\n'))
+              .setFooter({ text: 'GAMING SHAMING • India PC Gear Radar (Min 45% OFF)' })
+              .setTimestamp();
+
+            const row = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setLabel(`🛒 Buy on ${store}`)
+                .setStyle(ButtonStyle.Link)
+                .setURL(buyLink)
+                .setEmoji('🇮🇳')
+            );
+
+            const sent = await pcDealsCh.send({ embeds: [embed], components: [row] });
+            db.recordAutomationFeed('india_deal', id, cleanTitle, { store, pct, price, buyLink }, pcDealsCh.id, sent.id);
+            console.log(`[INDIA_PC_DEALS] Published deal: [${store} • ${pct}% OFF] "${cleanTitle}" (${id})`);
+            return; // 1 deal per hourly cycle to prevent spam
+          } else if (!inDb) {
+            db.recordAutomationFeed('india_deal', id, cleanTitle, {}, pcDealsCh.id, 'channel_duplicate');
+          }
+        }
+      } catch (srcErr) {
+        console.warn(`[INDIA_PC_DEALS_SRC_WARN] ${source}:`, srcErr.message);
       }
     }
   } catch (err) {
-    console.warn('[PC_DEALS_POLL_WARN]', err.message);
+    console.warn('[INDIA_PC_DEALS_POLL_WARN]', err.message);
   }
 }
 
