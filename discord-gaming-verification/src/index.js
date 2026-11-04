@@ -16,6 +16,8 @@ import {
   handleMemberIdentityCommands,
   handleMemberIdentityComponents
 } from '../../dist/game-commands.js';
+import { buildLeaderboardEmbed } from '../../dist/profiles/rank-manager.js';
+import { buildProfileEmbed } from '../../dist/profiles/profile-manager.js';
 import {
   parseSchedule,
   parseLookingFor,
@@ -617,6 +619,30 @@ client.on('guildMemberAdd', member => {
     return;
   }
 
+  // Send friendly onboarding Direct Message (DM) to new member
+  setTimeout(async () => {
+    try {
+      const dmEmbed = new EmbedBuilder()
+        .setColor(0x00F0FF)
+        .setTitle(`👋 Welcome to GAMING SHAMING, ${member.displayName}!`)
+        .setDescription([
+          'We are glad to have you in our community!',
+          '',
+          '**To unlock all game lounges & squad channels:**',
+          '• **Step 1:** Read our rules in <#924522829490323516>',
+          '• **Step 2:** Complete gamer verification in <#1566854065688813688>',
+          '• **Step 3:** Equip your game & platform roles in <#1567553522403385425>',
+          '',
+          'Ready to squad up? Hop into **#looking-for-group** or click **➕・Click to Create VC** to spin up a private room!',
+          '',
+          '*Game on! 🚀*'
+        ].join('\n'))
+        .setFooter({ text: 'GAMING SHAMING • Automated Guide' });
+
+      await member.send({ embeds: [dmEmbed] }).catch(() => {});
+    } catch (_) {}
+  }, 3000);
+
   // If member already completed native onboarding during join flow
   if (hasCompletedNativeOnboarding(member)) {
     console.log(`[ONBOARDING_TRANSITION] Member ${member.user.tag} joined with native onboarding already completed. Triggering Game Gear verification.`);
@@ -701,6 +727,47 @@ client.on('interactionCreate', async interaction => {
         console.error('[GamerRoleToggleError]', err);
         await safeEditOrReply(interaction, { content: `❌ Could not update role: ${err.message}`, components: [] });
       }
+      return;
+    }
+
+    // Hall of Fame & Leaderboard Buttons
+    if (customId === 'hall_of_fame_leaderboard') {
+      await safeAcknowledge(interaction, 'reply');
+      const leaderboard = db.getLeaderboard(10);
+      const { embed } = buildLeaderboardEmbed(leaderboard, userId);
+      await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+      return;
+    }
+
+    if (customId === 'hall_of_fame_profile') {
+      await safeAcknowledge(interaction, 'reply');
+      const p = db.getMemberProfile(userId);
+      const badges = db.getUserBadges(userId);
+      const leaderboard = db.getLeaderboard(100);
+      const rankIndex = leaderboard.findIndex(l => l.user_id === userId) + 1 || 1;
+      const { embed } = buildProfileEmbed(interaction.user, p, badges, rankIndex);
+      await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+      return;
+    }
+
+    if (customId === 'hall_of_fame_badges') {
+      await safeAcknowledge(interaction, 'reply');
+      const allBadges = db.getAllBadges();
+      const userBadges = db.getUserBadges(userId);
+      const userBadgeIds = new Set(userBadges.map(b => b.slug));
+
+      const badgeList = allBadges.map(b => {
+        const owned = userBadgeIds.has(b.slug);
+        return `${owned ? '✅' : '🔒'} **${b.name}** (${b.icon})\n> *${b.description}*`;
+      }).join('\n\n');
+
+      const embed = new EmbedBuilder()
+        .setColor(0xF1C40F)
+        .setTitle(`🎖️ Achievements & Badges for ${interaction.user.username}`)
+        .setDescription(badgeList || 'No badges configured.')
+        .setFooter({ text: 'Earn badges through voice lounges, squad LFG, and community events!' });
+
+      await safeEditOrReply(interaction, { embeds: [embed], components: [] });
       return;
     }
 
