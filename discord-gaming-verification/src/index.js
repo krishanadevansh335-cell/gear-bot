@@ -2,7 +2,7 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  Client, GatewayIntentBits, Partials, ChannelType, PermissionsBitField,
+  Client, GatewayIntentBits, Partials, ChannelType, PermissionsBitField, ActivityType,
   REST, Routes, SlashCommandBuilder, PermissionFlagsBits,
   ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
   ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle,
@@ -1905,6 +1905,22 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 client.once('clientReady', async () => {
   console.log(`[Verification & Games] Logged in as ${client.user.tag}`);
   console.log(`[STARTUP] Bot connected to Discord. Guild ID target: ${guildId}`);
+
+    // Dynamic Esports Presence Rotation
+    const presenceList = [
+      { name: '🎮 /lfg • Squad Matchmaking', type: ActivityType.Playing },
+      { name: '💻 60%+ PC Gear Loots', type: ActivityType.Watching },
+      { name: '🖥️ /build • Indian PC Advisor', type: ActivityType.Playing },
+      { name: '👑 /setup-leaderboard', type: ActivityType.Listening }
+    ];
+    let pIdx = 0;
+    const rotatePresence = () => {
+      const p = presenceList[pIdx % presenceList.length];
+      client.user.setPresence({ activities: [p], status: 'online' });
+      pIdx++;
+    };
+    rotatePresence();
+    setInterval(rotatePresence, 60 * 1000);
   try {
     const rest = new REST({ version: '10' }).setToken(token);
     await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: allCommands });
