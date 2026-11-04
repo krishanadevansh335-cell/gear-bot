@@ -1589,6 +1589,10 @@ client.once('clientReady', async () => {
     setTimeout(() => pollLiveGameDeals(guild), 15 * 1000);
     setInterval(() => pollLiveGameDeals(guild), 2 * 60 * 60 * 1000);
 
+    // Automated Live Server Stats channels sync (every 10 minutes)
+    setTimeout(() => updateServerStats(guild), 30 * 1000);
+    setInterval(() => updateServerStats(guild), 10 * 60 * 1000);
+
     // Auto-Voice: Ensure generator channel exists and clean up any orphaned empty squad rooms
     try {
       const gamingCat = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && (c.name.includes('GAMING') || c.id === '1567553467357204560'));
@@ -1746,6 +1750,32 @@ async function pollLiveGameDeals(guild) {
     }
   } catch (err) {
     console.error('[DEALS_POLL_ERROR]', err);
+  }
+}
+
+async function updateServerStats(guild) {
+  try {
+    const members = await guild.members.fetch();
+    const total = members.size;
+    const humans = members.filter(m => !m.user.bot).size;
+    const bots = members.filter(m => m.user.bot).size;
+
+    const chAll = guild.channels.cache.get('924523891769081886');
+    const chHumans = guild.channels.cache.get('924523894940000321');
+    const chBots = guild.channels.cache.get('924523898366734347');
+
+    if (chAll && chAll.name !== `All Members: ${total}`) {
+      await chAll.setName(`All Members: ${total}`).catch(() => {});
+    }
+    if (chHumans && chHumans.name !== `Members: ${humans}`) {
+      await chHumans.setName(`Members: ${humans}`).catch(() => {});
+    }
+    if (chBots && chBots.name !== `Bots: ${bots}`) {
+      await chBots.setName(`Bots: ${bots}`).catch(() => {});
+    }
+    console.log(`[SERVER_STATS] Synchronized stats: All=${total}, Humans=${humans}, Bots=${bots}`);
+  } catch (err) {
+    console.warn('[SERVER_STATS_WARN]', err.message);
   }
 }
 
