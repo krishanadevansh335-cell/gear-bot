@@ -594,7 +594,19 @@ async function finish(guild, userId, s) {
 
 // Gateway Events
 client.on('guildMemberAdd', member => {
-  if (member.guild.id !== guildId || member.user.bot) return;
+  if (member.guild.id !== guildId) return;
+
+  // Automatically assign @Server Bot role to any bot that joins
+  if (member.user.bot) {
+    const serverBotRole = member.guild.roles.cache.find(r => r.name === '🤖 Server Bot' || r.id === '1567600793547440300');
+    if (serverBotRole) {
+      member.roles.add(serverBotRole)
+        .then(() => console.log(`[BOT_AUTO_ROLE] Successfully assigned @Server Bot to ${member.user.tag}`))
+        .catch(err => console.error(`[BOT_AUTO_ROLE_ERR] Could not assign role to ${member.user.tag}:`, err));
+    }
+    return;
+  }
+
   const isPending = Boolean(member.pending);
   console.log(`[SCREENING_EVENT_RECEIVED] guildMemberAdd — user=${member.user.tag} id=${member.id} pending=${isPending}`);
   db.recordScreeningEvent(member.id, guildId, 'guildMemberAdd', null, isPending);
