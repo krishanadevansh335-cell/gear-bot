@@ -1,0 +1,16 @@
+{
+  "category": "server-identity",
+  "name": "Server Identity & Welcome Banner",
+  "id": "photo-1542751371-adc38448a05e",
+  "photographer": "Florian Olivo (@florianolv)",
+  "license": "Unsplash License (Free commercial & non-commercial use, royalty-free)",
+  "description": "Cyberpunk neon battlestation and futuristic gaming terminal with cyan/blurple glow.",
+  "unsplash_id": "photo-1542751371-adc38448a05e",
+  "unsplash_url": "https://unsplash.com/photos/photo-1542751371-adc38448a05e",
+  "downloaded_at": "2026-11-04T16:19:13.453Z",
+  "files": {
+    "banner": "banner-960x540.png",
+    "embed_header": "embed-header-800x250.png",
+    "original": "original-1920x1080.jpg"
+  }
+}
