@@ -5,7 +5,8 @@ import {
   Client, GatewayIntentBits, Partials, ChannelType, PermissionsBitField,
   REST, Routes, SlashCommandBuilder, PermissionFlagsBits,
   ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
-  ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle
+  ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle,
+  EmbedBuilder
 } from 'discord.js';
 import { GameDatabase } from '../../dist/game-db.js';
 import { DynamicGameManager } from '../../dist/game-manager.js';
@@ -145,7 +146,7 @@ function scheduleTimers(guild, userId) {
 
 /**
  * Public onboarding greeting directing members from onboarding destination to #verify,
- * with the Start Verification button in #verify.
+ * with personalized thank-you message, expressive emojis, and Start Verification button in #verify.
  */
 async function begin(member) {
   const guild = member.guild;
@@ -159,30 +160,85 @@ async function begin(member) {
   const rulesCh = guild.channels.cache.find(c => c.name === names.rules);
   const welcomeCh = guild.channels.cache.find(c => c.name === 'welcome');
 
-  // 1. Direct member from the onboarding destination (#welcome) to #verify
+  const avatarUrl = member.user?.displayAvatarURL ? member.user.displayAvatarURL({ size: 256 }) : undefined;
+  const guildIcon = guild.iconURL ? guild.iconURL({ size: 128 }) : undefined;
+
+  // 1. Direct member from the onboarding destination (#welcome) to #verify with personalized thank-you card
   if (welcomeCh && welcomeCh.isTextBased() && verifyCh) {
     const jumpRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setStyle(ButtonStyle.Link)
-        .setLabel('🛡️ Go to #verify')
+        .setLabel('🛡️ Complete Verification in #verify')
         .setURL(`https://discord.com/channels/${guild.id}/${verifyCh.id}`)
     );
+
+    const welcomeEmbed = new EmbedBuilder()
+      .setColor(0x5865F2)
+      .setTitle(`✨ 🎉 WELCOME TO GAMING SHAMING, ${member.displayName}! 🎉 ✨`)
+      .setDescription([
+        `Hey <@${member.id}>! **Thank you so much for joining our community!** 🙌💫 We are super hyped to have you here!`,
+        '',
+        `You have successfully finished Discord's initial onboarding questions. 🎮✨`,
+        '',
+        `👉 **Next Step:** Head over to <#${verifyCh.id}> to complete your **Gamer Gear Verification**.`,
+        'It takes only ~30 seconds to pick your games and automatically unlocks all text lounges, voice rooms, and squad matchmaking! 🚀🔥',
+        '',
+        'Click the button below to jump straight to verification! ⬇️'
+      ].join('\n'))
+      .setFooter({ text: 'Gamer Gear • Automatic Onboarding Gateway', iconURL: guildIcon })
+      .setTimestamp();
+
+    if (avatarUrl) {
+      welcomeEmbed.setThumbnail(avatarUrl);
+    }
+
     await welcomeCh.send({
-      content: `👋 Welcome <@${member.id}>! You've completed server onboarding.\n👉 **Next Step:** Head over to <#${verifyCh.id}> and click **Start Verification** to complete your Game Gear verification and unlock full access!`,
+      content: `🎉✨ **WELCOME <@${member.id}>!** Thank you for joining **GAMING SHAMING**! 🎮🔥 Please head to <#${verifyCh.id}> to unlock all channels:`,
+      embeds: [welcomeEmbed],
       components: [jumpRow],
       allowedMentions: { parse: [], users: [member.id] }
     }).catch(() => {});
   }
 
-  // 2. Greeting in #verify with Start Verification button
+  // 2. Greeting in #verify with Start Verification button & personalized thank you card
   if (verifyCh && verifyCh.isTextBased()) {
     const welcome = buildPublicVerifyWelcome(rulesCh ? rulesCh.id : undefined);
+
+    const verifyEmbed = new EmbedBuilder()
+      .setColor(0x00E5FF)
+      .setTitle(`🛡️ GAMER GEAR VERIFICATION CHECKPOINT ✨`)
+      .setDescription([
+        `Welcome <@${member.id}>! **Thank you for joining GAMING SHAMING!** 🎮🎉`,
+        '',
+        'Click **Start Verification** below to configure your gamer card:',
+        '• 🔞 **Age Classification** (18+ / Teen)',
+        '• 👤 **Gender** *(Optional & Private)*',
+        '• 🎯 **Main Games** (Valorant, CS2, Minecraft, etc.)',
+        '• ⏰ **Play Schedule & Timezone**',
+        '• 🔍 **Looking For** (Competitive, Casual, Duo/Trio)',
+        '• 🎙️ **Voice Language**',
+        '',
+        '⚡ *Takes ~30 seconds and awards your @Verified Member role instantly!* 💫'
+      ].join('\n'))
+      .setFooter({ text: 'Gamer Gear Verification Wall', iconURL: guildIcon })
+      .setTimestamp();
+
+    if (avatarUrl) {
+      verifyEmbed.setThumbnail(avatarUrl);
+    }
+
     await verifyCh.send({
-      content: `👋 Welcome <@${member.id}>! You've completed the initial onboarding questions. Now, please click **Start Verification** below to complete your Game Gear verification and unlock full access to the server!`,
+      content: `✨ 🎮 **Welcome <@${member.id}>! Thank you for joining the server!** 🎮 ✨\nPlease click **Start Verification** below to unlock your channels:`,
+      embeds: [verifyEmbed],
       components: welcome.components,
       allowedMentions: { parse: [], users: [member.id] }
     }).catch(() => {});
   }
+
+  // 3. Optional friendly direct message (fails silently if member has DMs disabled)
+  member.send?.({
+    content: `🎉 **Thank you for joining GAMING SHAMING, ${member.displayName}!** ✨🎮\n\nTo unlock all channels, please complete your Gamer Gear verification here:\n👉 <https://discord.com/channels/${guild.id}/${verifyCh?.id || ''}>\n\nWe look forward to gaming with you! 🚀🔥`
+  }).catch(() => {});
 }
 
 /**
