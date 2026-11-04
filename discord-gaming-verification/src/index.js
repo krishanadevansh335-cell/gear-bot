@@ -1535,9 +1535,36 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// Guard against public chat data leakage in #verify
+// Message Router: Verification privacy guard & Rate My Setup auto-reactions
 client.on('messageCreate', async msg => {
   if (!msg.guild || msg.guild.id !== guildId || msg.author.bot) return;
+
+  // Rate My Setup Auto-Reactions (10, 8, 6, 4, Dead) & Discussion Thread
+  if (msg.channel.id === '1567632407803330581' || msg.channel.name.includes('ate-')) {
+    const hasImage = msg.attachments.size > 0 || msg.content.match(/https?:\/\/.*\.(png|jpg|jpeg|gif|webp)/i);
+    if (hasImage) {
+      try {
+        // Auto-react rating scale
+        await msg.react('🔟'); // 10/10 God Tier
+        await msg.react('8️⃣'); // 8/10 Clean
+        await msg.react('6️⃣'); // 6/10 Respectable
+        await msg.react('4️⃣'); // 4/10 Budget Grind
+        await msg.react('💀'); // Dead / Needs Cable Management
+
+        // Automatically create a discussion thread for specs and advice
+        const cleanAuthor = msg.author.displayName.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'Gamer';
+        await msg.startThread({
+          name: `💬 ${cleanAuthor}'s Setup Discussion`,
+          autoArchiveDuration: 1440 // 24 hours
+        }).catch(() => {});
+        console.log(`[RATE_SETUP] Added rating scale and thread for ${msg.author.tag}`);
+      } catch (err) {
+        console.warn('[RATE_SETUP_ERROR]', err.message);
+      }
+    }
+    return;
+  }
+
   if (msg.channel.name !== names.verify) return;
 
   // Privacy Protection: Only delete if message matches an actual sensitive disclosure pattern
@@ -1667,6 +1694,10 @@ client.once('clientReady', async () => {
     // Automated Reddit LFG feed polling (every 1 hour)
     setTimeout(() => pollRedditLfgFeed(guild), 60 * 1000);
     setInterval(() => pollRedditLfgFeed(guild), 60 * 60 * 1000);
+
+    // Automated PC Hardware & Gear Deals polling (every 1 hour)
+    setTimeout(() => pollPCHardwareDeals(guild), 75 * 1000);
+    setInterval(() => pollPCHardwareDeals(guild), 60 * 60 * 1000);
 
     // Auto-Voice: Ensure generator channel exists and clean up any orphaned empty squad rooms
     try {
@@ -2009,6 +2040,77 @@ async function pollRedditLfgFeed(guild) {
     }
   } catch (err) {
     console.warn('[REDDIT_LFG_POLL_WARN]', err.message);
+  }
+}
+
+async function pollPCHardwareDeals(guild) {
+  try {
+    const pcDealsCh = guild.channels.cache.get('1567632410135371887') || guild.channels.cache.find(c => c.name.includes('ear-'));
+    if (!pcDealsCh || !pcDealsCh.isTextBased()) return;
+
+    const res = await fetch('https://www.reddit.com/r/buildapcsales/new.rss', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!res.ok) return;
+    const xml = await res.text();
+    const matches = xml.match(/<entry>[\s\S]*?<\/entry>/g) || [];
+
+    // Fetch recent messages to prevent duplicates
+    const recentMessages = await pcDealsCh.messages.fetch({ limit: 25 }).catch(() => null);
+
+    for (const m of matches.slice(0, 5)) {
+      const id = (m.match(/<id>([\s\S]*?)<\/id>/)?.[1] || '').trim();
+      const rawTitle = (m.match(/<title>([\s\S]*?)<\/title>/)?.[1] || '').replace(/&amp;/g, '&');
+      const link = m.match(/<link href="([^"]+)"/)?.[1] || '';
+
+      if (!id || !rawTitle) continue;
+
+      const inDb = db.hasAutomationFeed('pc_deal', id);
+      const inChannel = recentMessages && recentMessages.some(msg =>
+        msg.embeds.some(e => e.title && e.title.includes(rawTitle.slice(0, 50)))
+      );
+
+      if (!inDb && !inChannel) {
+        const tagMatch = rawTitle.match(/\[(.*?)\]/);
+        const tag = tagMatch ? tagMatch[1].toUpperCase() : 'HARDWARE';
+        const cleanTitle = rawTitle.replace(/\[.*?\]\s*/, '');
+
+        const embed = new EmbedBuilder()
+          .setColor(0x10B981) // Emerald Green
+          .setAuthor({ name: `GAMER GEAR // HARDWARE DEAL • [${tag}]`, iconURL: 'https://www.redditstatic.com/desktop2x/img/favicon/android-icon-192x192.png' })
+          .setTitle(`🔥 [${tag}] ${cleanTitle.slice(0, 240)}`)
+          .setDescription([
+            `Verified hardware sale detected on **r/buildapcsales**:`,
+            '',
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+            `• **Category:** \`[${tag}]\``,
+            `• **Status:** Active Community Deal`,
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+          ].join('\n'))
+          .setFooter({ text: 'GAMING SHAMING • Real-Time PC Hardware Hunter' })
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel('🛒 View Deal on Reddit')
+            .setStyle(ButtonStyle.Link)
+            .setURL(link)
+            .setEmoji('🔗')
+        );
+
+        const sent = await pcDealsCh.send({ embeds: [embed], components: [row] });
+        db.recordAutomationFeed('pc_deal', id, cleanTitle, { tag, link }, pcDealsCh.id, sent.id);
+        console.log(`[PC_DEALS] Published new hardware deal: [${tag}] "${cleanTitle}" (${id})`);
+        break; // Post 1 new deal per interval to avoid channel spam
+      } else if (!inDb) {
+        db.recordAutomationFeed('pc_deal', id, rawTitle, {}, pcDealsCh.id, 'channel_duplicate');
+      }
+    }
+  } catch (err) {
+    console.warn('[PC_DEALS_POLL_WARN]', err.message);
   }
 }
 
