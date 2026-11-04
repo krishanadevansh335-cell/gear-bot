@@ -44,6 +44,9 @@ import {
   buildOnboardingPlatformPayload,
   buildOnboardingExperiencePayload
 } from '../../dist/verification-ui.js';
+import {
+  IDS, BUILD_PRESETS, buildPresetEmbed, buildMarketModal, formatMarketEmbed
+} from './gear-features.js';
 
 const token = process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || process.env.TOKEN;
 const guildId = process.env.DISCORD_GUILD_ID || process.env.GUILD_ID || process.env.SERVER_ID || process.env.DISCORD_SERVER_ID || '924325170972340264';
@@ -86,7 +89,30 @@ const norm = (s) => s.trim().toLowerCase();
 const baseCommands = [
   new SlashCommandBuilder().setName('setup-verification').setDescription('Post the public Start Verification message in #verify.').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder().setName('verification-status').setDescription('Show your verification status.'),
-  new SlashCommandBuilder().setName('review-pending').setDescription('List members awaiting moderator review.').setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+  new SlashCommandBuilder().setName('review-pending').setDescription('List members awaiting moderator review.').setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+  new SlashCommandBuilder()
+    .setName('build')
+    .setDescription('Get balanced Indian PC build recommendations for your budget (₹30K to ₹2L+).')
+    .addStringOption(opt =>
+      opt.setName('budget')
+        .setDescription('Target build budget in INR')
+        .setRequired(true)
+        .addChoices(
+          { name: '₹30,000 - Esports Starter (Ryzen 5600G APU)', value: '30k' },
+          { name: '₹50,000 - 1080p Ultra High-FPS (RX 6600)', value: '50k' },
+          { name: '₹80,000 - 1440p Sweet Spot (RTX 4060 / AM5)', value: '80k' },
+          { name: '₹1,20,000 - 1440p Esports Monster (RTX 4070 Super)', value: '120k' },
+          { name: '₹2,00,000+ - 4K God Tier Enthusiast (RTX 4080 Super / 7800X3D)', value: '200k' }
+        )
+    ),
+  new SlashCommandBuilder()
+    .setName('setup-leaderboard')
+    .setDescription('View the Top 5 highest rated battlestations in Rate My Setup.'),
+  new SlashCommandBuilder()
+    .setName('crown-king')
+    .setDescription('Award the official Battlestation King role to a member.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addUserOption(opt => opt.setName('user').setDescription('The member to crown as Battlestation King').setRequired(true))
 ].map(x => x.toJSON());
 
 const gameCommandsList = buildGameCommands().map(x => x.toJSON());
@@ -809,6 +835,48 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
+    // Hardware & Deals Feature Handlers
+    if (customId === 'toggle_deal_hunter_role') {
+      await safeAcknowledge(interaction, 'reply');
+      try {
+        const member = await interaction.guild.members.fetch(userId);
+        const hasRole = member.roles.cache.has(IDS.DEAL_HUNTER_ROLE_ID);
+        if (hasRole) {
+          await member.roles.remove(IDS.DEAL_HUNTER_ROLE_ID);
+          await safeEditOrReply(interaction, {
+            content: '🔕 You have unsubscribed from **🔔 Deal Hunter** alerts. You will no longer be pinged on flash hardware deals.',
+            components: []
+          });
+        } else {
+          await member.roles.add(IDS.DEAL_HUNTER_ROLE_ID);
+          await safeEditOrReply(interaction, {
+            content: '✅ You now have the **🔔 Deal Hunter** role! You will be pinged instantly whenever a 70%+ mega hardware loot or price glitch drops.',
+            components: []
+          });
+        }
+      } catch (e) {
+        await safeEditOrReply(interaction, { content: `Could not update role: ${e.message}`, components: [] });
+      }
+      return;
+    }
+
+    if (customId === 'market_create_listing_prompt') {
+      await interaction.showModal(buildMarketModal());
+      return;
+    }
+
+    if (customId.startsWith('build_preset_')) {
+      await safeAcknowledge(interaction, 'reply');
+      const key = customId.replace('build_preset_', '');
+      const embed = buildPresetEmbed(key);
+      if (embed) {
+        await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+      } else {
+        await safeEditOrReply(interaction, { content: 'Build preset not found.', components: [] });
+      }
+      return;
+    }
+
     // Start / Status entry points
     if (customId === 'verify_start_btn') {
       await safeAcknowledge(interaction, 'reply');
@@ -1396,6 +1464,43 @@ client.on('interactionCreate', async interaction => {
   if (interaction.isModalSubmit()) {
     const customId = interaction.customId;
     const userId = interaction.user.id;
+
+    if (customId === 'market_sell_modal') {
+      await safeAcknowledge(interaction, 'reply');
+      try {
+        const data = {
+          type: interaction.fields.getTextInputValue('market_type').trim(),
+          item: interaction.fields.getTextInputValue('market_item').trim(),
+          price: interaction.fields.getTextInputValue('market_price').trim(),
+          condition: interaction.fields.getTextInputValue('market_condition').trim(),
+          location: interaction.fields.getTextInputValue('market_location').trim()
+        };
+
+        const marketCh = interaction.guild.channels.cache.get(IDS.MARKETPLACE_CHANNEL_ID) || interaction.guild.channels.cache.find(c => c.name.includes('arket'));
+        if (marketCh && marketCh.isTextBased()) {
+          const embed = formatMarketEmbed(data, interaction.user);
+          const post = await marketCh.send({ embeds: [embed] });
+
+          const cleanItem = data.item.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'Gear';
+          await post.startThread({
+            name: `💬 Inquiry - ${cleanItem.slice(0, 35)}`,
+            autoArchiveDuration: 1440
+          }).catch(() => {});
+
+          await safeEditOrReply(interaction, {
+            content: `✅ Your marketplace listing for **${data.item}** has been published in <#${marketCh.id}>!\n⚠️ **Reminder:** Please reply in your thread with a handwritten timestamp photo (\`Username\` + \`GAMING SHAMING\` + \`Date\`) to verify ownership.`,
+            components: []
+          });
+        } else {
+          await safeEditOrReply(interaction, { content: 'Marketplace channel could not be found.', components: [] });
+        }
+      } catch (err) {
+        console.error('Market modal error:', err);
+        await safeEditOrReply(interaction, { content: `Error creating listing: ${err.message}`, components: [] });
+      }
+      return;
+    }
+
     const s = db.getVerificationSession(guildId, userId);
     if (!s) return;
 
@@ -1532,6 +1637,125 @@ client.on('interactionCreate', async interaction => {
     } catch (e) {
       await safeEditOrReply(interaction, { content: `Setup notice: ${e.message}`, components: [] });
     }
+    return;
+  }
+
+  // ── Hardware & Community Features Slash Commands ───────────────────────────
+  if (interaction.commandName === 'build') {
+    await safeAcknowledge(interaction, 'reply');
+    const budget = interaction.options.getString('budget') || '50k';
+    const embed = buildPresetEmbed(budget);
+    if (embed) {
+      await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+    } else {
+      await safeEditOrReply(interaction, { content: 'Please select a valid budget preset: 30k, 50k, 80k, 120k, 200k', components: [] });
+    }
+    return;
+  }
+
+  if (interaction.commandName === 'setup-leaderboard') {
+    await safeAcknowledge(interaction, 'reply');
+    try {
+      const setupCh = interaction.guild.channels.cache.get(IDS.RATE_SETUP_CHANNEL_ID) || interaction.guild.channels.cache.find(c => c.name.includes('ate-'));
+      if (!setupCh || !setupCh.isTextBased()) {
+        await safeEditOrReply(interaction, { content: 'Rate My Setup channel not found.', components: [] });
+        return;
+      }
+      const msgs = await setupCh.messages.fetch({ limit: 100 });
+      const rated = [];
+      for (const m of msgs.values()) {
+        const react10 = m.reactions.cache.get('🔟');
+        const count = react10 ? react10.count - (react10.me ? 1 : 0) : 0;
+        if (count > 0 && !m.author.bot) {
+          const img = m.attachments.first()?.url || m.content.match(/https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp)/i)?.[0];
+          rated.push({
+            author: m.author,
+            count,
+            url: m.url,
+            img
+          });
+        }
+      }
+      rated.sort((a, b) => b.count - a.count);
+      const top5 = rated.slice(0, 5);
+
+      if (top5.length === 0) {
+        await safeEditOrReply(interaction, {
+          content: '🏆 No setups rated with 🔟 yet in <#' + setupCh.id + '>! Post your battlestation to be the first champion.',
+          components: []
+        });
+        return;
+      }
+
+      const desc = top5.map((s, idx) => {
+        const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+        return `${medals[idx]} **<@${s.author.id}>** — **${s.count}** God Tier Votes (🔟)\n> 🔗 [View Battlestation](${s.url})`;
+      }).join('\n\n');
+
+      const embed = new EmbedBuilder()
+        .setColor(0xF1C40F)
+        .setTitle('🏆 RATE MY SETUP // COMMUNITY HALL OF FAME')
+        .setDescription(desc)
+        .setFooter({ text: 'Voted by the community with 🔟 God Tier reactions • GAMING SHAMING' })
+        .setTimestamp();
+
+      if (top5[0]?.img) embed.setImage(top5[0].img);
+
+      await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+    } catch (e) {
+      await safeEditOrReply(interaction, { content: `Error fetching leaderboard: ${e.message}`, components: [] });
+    }
+    return;
+  }
+
+  if (interaction.commandName === 'crown-king') {
+    await safeAcknowledge(interaction, 'reply');
+    try {
+      const targetUser = interaction.options.getUser('user');
+      const targetMember = await interaction.guild.members.fetch(targetUser.id);
+      const kingRole = interaction.guild.roles.cache.get(IDS.BATTLESTATION_KING_ROLE_ID);
+      if (!kingRole) {
+        await safeEditOrReply(interaction, { content: 'Battlestation King role not found.', components: [] });
+        return;
+      }
+
+      // Remove from existing holders
+      for (const m of kingRole.members.values()) {
+        if (m.id !== targetMember.id) {
+          await m.roles.remove(kingRole).catch(() => {});
+        }
+      }
+
+      await targetMember.roles.add(kingRole);
+
+      const crownEmbed = new EmbedBuilder()
+        .setColor(0x9B59B6)
+        .setTitle('👑 NEW BATTLESTATION KING CROWNED!')
+        .setDescription([
+          `Hail the new champion of **#rate-my-setup**!`,
+          '',
+          `🏆 **<@${targetMember.id}>** has been crowned with the official **@Battlestation King** role!`,
+          '',
+          'Their rig stands as the highest-voted battlestation in the server. Check out their setup in <#' + IDS.RATE_SETUP_CHANNEL_ID + '>!'
+        ].join('\n'))
+        .setThumbnail(targetMember.displayAvatarURL())
+        .setFooter({ text: 'GAMING SHAMING • Battlestation Royalty' })
+        .setTimestamp();
+
+      const setupCh = interaction.guild.channels.cache.get(IDS.RATE_SETUP_CHANNEL_ID);
+      if (setupCh && setupCh.isTextBased()) {
+        await setupCh.send({ embeds: [crownEmbed] }).catch(() => {});
+      }
+
+      await safeEditOrReply(interaction, {
+        content: `👑 Successfully crowned <@${targetMember.id}> as the **Battlestation King**!`,
+        embeds: [crownEmbed],
+        components: []
+      });
+    } catch (e) {
+      await safeEditOrReply(interaction, { content: `Error crowning user: ${e.message}`, components: [] });
+    }
+    return;
   }
 });
 
@@ -1560,6 +1784,24 @@ client.on('messageCreate', async msg => {
         console.log(`[RATE_SETUP] Added rating scale and thread for ${msg.author.tag}`);
       } catch (err) {
         console.warn('[RATE_SETUP_ERROR]', err.message);
+      }
+    }
+    return;
+  }
+
+  // PC Build Advice Consultation Auto-Thread
+  if (msg.channel.id === IDS.BUILD_ADVICE_CHANNEL_ID || msg.channel.name.includes('uild-')) {
+    const isQuestion = msg.content.includes('?') || /\b(build|budget|spec|bottleneck|upgrade|gpu|cpu|ram|motherboard|psu|pc|recommend|parts)\b/i.test(msg.content);
+    if (isQuestion) {
+      try {
+        const cleanAuthor = msg.author.displayName.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'Gamer';
+        await msg.startThread({
+          name: `💬 ${cleanAuthor}'s Rig Consultation`,
+          autoArchiveDuration: 1440
+        }).catch(() => {});
+        console.log(`[BUILD_ADVICE] Created consultation thread for ${msg.author.tag}`);
+      } catch (err) {
+        console.warn('[BUILD_ADVICE_THREAD_WARN]', err.message);
       }
     }
     return;
@@ -2155,7 +2397,8 @@ async function pollPCHardwareDeals(guild) {
                 .setEmoji('🇮🇳')
             );
 
-            const sent = await pcDealsCh.send({ embeds: [embed], components: [row] });
+            const dealContent = pct >= 70 ? `<@&${IDS.DEAL_HUNTER_ROLE_ID}> 🔥 **MEGA HARDWARE LOOT ALERT (${pct}% OFF)!**` : undefined;
+            const sent = await pcDealsCh.send({ content: dealContent, embeds: [embed], components: [row] });
             db.recordAutomationFeed('india_deal', id, cleanTitle, { store, pct, price, buyLink }, pcDealsCh.id, sent.id);
             console.log(`[INDIA_PC_DEALS] Published deal: [${store} • ${pct}% OFF] "${cleanTitle}" (${id})`);
             return; // 1 deal per hourly cycle to prevent spam
