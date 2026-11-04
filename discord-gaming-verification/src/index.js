@@ -1664,6 +1664,10 @@ client.once('clientReady', async () => {
     setTimeout(() => checkDailyMemeDrop(guild), 45 * 1000);
     setInterval(() => checkDailyMemeDrop(guild), 15 * 60 * 1000);
 
+    // Automated Reddit LFG feed polling (every 1 hour)
+    setTimeout(() => pollRedditLfgFeed(guild), 60 * 1000);
+    setInterval(() => pollRedditLfgFeed(guild), 60 * 60 * 1000);
+
     // Auto-Voice: Ensure generator channel exists and clean up any orphaned empty squad rooms
     try {
       const gamingCat = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && (c.name.includes('GAMING') || c.id === '1567553467357204560'));
@@ -1919,6 +1923,92 @@ async function dropDailyMeme(guild, dateKey) {
     console.log(`[DAILY_MEME] Published daily meme drop for ${dateKey}: "${meme.title}"`);
   } catch (err) {
     console.error('[DAILY_MEME_ERROR]', err);
+  }
+}
+
+async function pollRedditLfgFeed(guild) {
+  try {
+    const redditLfgCh = guild.channels.cache.get('1567629497119936607') || guild.channels.cache.find(c => c.name.includes('eddit-'));
+    if (!redditLfgCh || !redditLfgCh.isTextBased()) return;
+
+    const res = await fetch('https://www.reddit.com/r/GamerPals/new.rss', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!res.ok) return;
+    const xml = await res.text();
+    const matches = xml.match(/<entry>[\s\S]*?<\/entry>/g) || [];
+
+    // Fetch recent messages to prevent duplicates
+    const recentMessages = await redditLfgCh.messages.fetch({ limit: 25 }).catch(() => null);
+
+    // Process newest unposted LFG post
+    for (const m of matches.slice(0, 5)) {
+      const id = (m.match(/<id>([\s\S]*?)<\/id>/)?.[1] || '').trim();
+      const title = (m.match(/<title>([\s\S]*?)<\/title>/)?.[1] || 'Looking for Squad').replace(/&amp;/g, '&');
+      const link = m.match(/<link href="([^"]+)"/)?.[1] || 'https://reddit.com';
+      const author = (m.match(/<author><name>([\s\S]*?)<\/name>/)?.[1] || 'u/RedditGamer').replace('/u/', '');
+
+      if (!id || !title) continue;
+
+      const inDb = db.hasAutomationFeed('reddit_lfg', id);
+      const inChannel = recentMessages && recentMessages.some(msg =>
+        msg.embeds.some(e => e.title && e.title.includes(title))
+      );
+
+      if (!inDb && !inChannel) {
+        const contentRaw = m.match(/<content type="html">([\s\S]*?)<\/content>/)?.[1] || '';
+        const textClean = contentRaw
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 300);
+
+        const embed = new EmbedBuilder()
+          .setColor(0xFF4500) // Reddit Orange
+          .setAuthor({ name: `r/GamerPals • Posted by u/${author}`, iconURL: 'https://www.redditstatic.com/desktop2x/img/favicon/android-icon-192x192.png' })
+          .setTitle(`📢 ${title}`)
+          .setDescription([
+            `> *"${textClean || 'Check the Reddit post for full details and games list!'}"*`,
+            '',
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+            `• **Platform/Hub:** \`r/GamerPals\``,
+            `• **Author:** [\`u/${author}\`](https://reddit.com/user/${author})`,
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+          ].join('\n'))
+          .setFooter({ text: 'GAMING SHAMING • Live Reddit Matchmaking Feed' })
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel('🎮 View Post & Message Player')
+            .setStyle(ButtonStyle.Link)
+            .setURL(link)
+            .setEmoji('💬'),
+          new ButtonBuilder()
+            .setLabel('Create Squad Here (/lfg)')
+            .setStyle(ButtonStyle.Link)
+            .setURL('https://discord.com/channels/924325170972340264/1567553522403385425')
+            .setEmoji('🚀')
+        );
+
+        const sent = await redditLfgCh.send({ embeds: [embed], components: [row] });
+        db.recordAutomationFeed('reddit_lfg', id, title, { author, link }, redditLfgCh.id, sent.id);
+        console.log(`[REDDIT_LFG] Published new Reddit squad post: "${title}" (${id})`);
+        break; // Post one new post per poll interval to prevent spam
+      } else if (!inDb) {
+        db.recordAutomationFeed('reddit_lfg', id, title, { author, link }, redditLfgCh.id, 'channel_duplicate');
+      }
+    }
+  } catch (err) {
+    console.warn('[REDDIT_LFG_POLL_WARN]', err.message);
   }
 }
 
