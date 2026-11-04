@@ -1660,6 +1660,10 @@ client.once('clientReady', async () => {
     setTimeout(() => updateServerStats(guild), 30 * 1000);
     setInterval(() => updateServerStats(guild), 10 * 60 * 1000);
 
+    // Automated Daily 6:00 PM Gaming Meme Drop check (every 15 minutes)
+    setTimeout(() => checkDailyMemeDrop(guild), 45 * 1000);
+    setInterval(() => checkDailyMemeDrop(guild), 15 * 60 * 1000);
+
     // Auto-Voice: Ensure generator channel exists and clean up any orphaned empty squad rooms
     try {
       const gamingCat = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && (c.name.includes('GAMING') || c.id === '1567553467357204560'));
@@ -1843,6 +1847,78 @@ async function updateServerStats(guild) {
     console.log(`[SERVER_STATS] Synchronized stats: All=${total}, Humans=${humans}, Bots=${bots}`);
   } catch (err) {
     console.warn('[SERVER_STATS_WARN]', err.message);
+  }
+}
+
+async function checkDailyMemeDrop(guild) {
+  try {
+    const now = new Date();
+    const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const currentHour = istNow.getHours();
+    const dateKey = `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, '0')}-${String(istNow.getDate()).padStart(2, '0')}`;
+
+    // If it's 6:00 PM (18:00) or later today and we haven't dropped today's meme yet
+    if (currentHour >= 18 && !db.hasAutomationFeed('daily_meme', dateKey)) {
+      await dropDailyMeme(guild, dateKey);
+    }
+  } catch (err) {
+    console.warn('[DAILY_MEME_CHECK_ERROR]', err.message);
+  }
+}
+
+async function dropDailyMeme(guild, dateKey) {
+  try {
+    const memeCh = guild.channels.cache.get('924526497606299719') || guild.channels.cache.find(c => c.name.includes('emes'));
+    if (!memeCh || !memeCh.isTextBased()) return;
+
+    // Check recent channel messages for duplicate
+    const recent = await memeCh.messages.fetch({ limit: 20 }).catch(() => null);
+    const alreadyPostedToday = recent && recent.some(m =>
+      m.embeds.some(e => e.footer?.text && e.footer.text.includes(dateKey))
+    );
+
+    if (alreadyPostedToday) {
+      db.recordAutomationFeed('daily_meme', dateKey, 'Daily Meme', {}, memeCh.id, 'channel_existing');
+      return;
+    }
+
+    const subreddits = ['gaming', 'memes', 'dankmemes'];
+    let meme = null;
+    for (const sub of subreddits) {
+      try {
+        const res = await fetch(`https://meme-api.com/gimme/${sub}`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (!data.nsfw && data.url && data.url.match(/\.(jpg|jpeg|png|gif)$/i)) {
+          meme = data;
+          break;
+        }
+      } catch (_) {}
+    }
+
+    if (!meme) return;
+
+    const embed = new EmbedBuilder()
+      .setColor(0x00F0FF)
+      .setAuthor({ name: 'GAMING SHAMING // DAILY COMMUNITY MEME DROP', iconURL: guild.iconURL() || undefined })
+      .setTitle(`😂 ${meme.title}`)
+      .setImage(meme.url)
+      .setFooter({ text: `GAMING SHAMING • Daily 6:00 PM Drop [${dateKey}] • r/${meme.subreddit} (👍 ${meme.ups.toLocaleString()} upvotes)` })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setLabel('View on Reddit')
+        .setStyle(ButtonStyle.Link)
+        .setURL(meme.postLink)
+        .setEmoji('🔗')
+    );
+
+    const sent = await memeCh.send({ embeds: [embed], components: [row] });
+    db.recordAutomationFeed('daily_meme', dateKey, meme.title, meme, memeCh.id, sent.id);
+    console.log(`[DAILY_MEME] Published daily meme drop for ${dateKey}: "${meme.title}"`);
+  } catch (err) {
+    console.error('[DAILY_MEME_ERROR]', err);
   }
 }
 
