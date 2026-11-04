@@ -367,10 +367,36 @@ export async function handleMemberIdentityCommands(interaction, db) {
                     || interaction.channel;
                 if (lfgCh && lfgCh.isTextBased()) {
                     const { embed, components } = buildLfgPartyEmbed(res.party, interaction.user);
-                    const sent = await lfgCh.send({ embeds: [embed], components });
+                    // Smart match game name against server game roles to ping interested gamers
+                    const gameLower = game.toLowerCase();
+                    const matchedRole = interaction.guild?.roles.cache.find(r => {
+                        const rName = r.name.toLowerCase();
+                        return (rName.includes(gameLower) ||
+                            (gameLower.includes('cs') && rName.includes('counter')) ||
+                            (gameLower.includes('counter') && rName.includes('counter')) ||
+                            (gameLower.includes('apex') && rName.includes('apex')) ||
+                            (gameLower.includes('val') && rName.includes('valorant')) ||
+                            (gameLower.includes('mine') && rName.includes('minecraft')) ||
+                            (gameLower.includes('hell') && rName.includes('helldivers')) ||
+                            (gameLower.includes('fort') && rName.includes('fortnite')) ||
+                            (gameLower.includes('pubg') && rName.includes('pubg')) ||
+                            (gameLower.includes('elden') && rName.includes('elden')) ||
+                            (gameLower.includes('gta') && rName.includes('gta')) ||
+                            (gameLower.includes('warframe') && rName.includes('warframe')) ||
+                            (gameLower.includes('pal') && rName.includes('palworld')));
+                    });
+                    const pingText = matchedRole
+                        ? `📢 <@&${matchedRole.id}> **New Squad Recruitment by <@${interaction.user.id}>!**`
+                        : undefined;
+                    const sent = await lfgCh.send({
+                        content: pingText,
+                        embeds: [embed],
+                        components,
+                        allowedMentions: { roles: matchedRole ? [matchedRole.id] : [] }
+                    });
                     db.updateLfgPartyMessage(res.party.id, lfgCh.id, sent.id);
                     await interaction.reply({
-                        content: `✅ **LFG Squad Created!** Broadcasted to <#${lfgCh.id}>: [Jump to Party](${sent.url})`,
+                        content: `✅ **LFG Squad Created!** Broadcasted to <#${lfgCh.id}>${matchedRole ? ` (alerted **@${matchedRole.name}**)` : ''}: [Jump to Party](${sent.url})`,
                         ephemeral: true
                     });
                 }
@@ -628,6 +654,11 @@ export async function handleMemberIdentityComponents(interaction, db) {
             const hostUser = await interaction.client.users.fetch(res.party.host_user_id).catch(() => undefined);
             const { embed, components } = buildLfgPartyEmbed(res.party, hostUser);
             await interaction.update({ embeds: [embed], components });
+            if (res.party.status === "full" && interaction.channel?.isTextBased()) {
+                await interaction.channel.send({
+                    content: `🎉 **Squad is FULL for ${res.party.game_name}!** <@${res.party.host_user_id}>, hop into <#1567606516121600154> (➕・Click to Create VC) with your squad!`
+                }).catch(() => { });
+            }
             return true;
         }
         if (cid.startsWith("lfg_leave_")) {
