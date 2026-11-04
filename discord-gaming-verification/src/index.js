@@ -1630,6 +1630,9 @@ async function pollLiveGameDeals(guild) {
     const updateCh = guild.channels.cache.find(c => c.name === 'game-updates' || c.name === 'game-news');
     if (!updateCh || !updateCh.isTextBased()) return;
 
+    // Fetch recent messages to prevent duplicate postings even across restarts or fresh DBs
+    const recentMessages = await updateCh.messages.fetch({ limit: 25 }).catch(() => null);
+
     // 1. Epic Games Free Promotions
     try {
       const epicRes = await fetch('https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US');
@@ -1640,40 +1643,49 @@ async function pollLiveGameDeals(guild) {
         return promo && promo.discountSetting?.discountPercentage === 0;
       });
 
-      if (freeNow && !db.hasAutomationFeed('free_games', freeNow.id)) {
-        const promo = freeNow.promotions.promotionalOffers[0].promotionalOffers[0];
-        const expiry = new Date(promo.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const imgObj = freeNow.keyImages?.find(i => i.type === 'OfferImageWide' || i.type === 'DieselStoreFrontWide') || freeNow.keyImages?.[0];
-        const pageSlug = freeNow.productSlug || freeNow.urlSlug || freeNow.offerMappings?.[0]?.pageSlug || '';
-        const storeUrl = `https://store.epicgames.com/en-US/p/${pageSlug}`;
+      if (freeNow) {
+        const inDb = db.hasAutomationFeed('free_games', freeNow.id);
+        const inChannel = recentMessages && recentMessages.some(m =>
+          m.embeds.some(e => e.title && e.title.toLowerCase().includes(freeNow.title.toLowerCase()))
+        );
 
-        const embed = new EmbedBuilder()
-          .setColor(0x10B981)
-          .setAuthor({ name: 'GAMER GEAR // FREE GAME ALERT' })
-          .setTitle(`🎁 100% FREE TO KEEP: ${freeNow.title.toUpperCase()}`)
-          .setDescription([
-            `> *"${freeNow.description || 'Grab this game for free on the Epic Games Store!'}"*`,
-            '',
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-            '• **Platform:** `Epic Games Store`',
-            `• **Offer Validity:** Claim before \`${expiry}\``,
-            '• **Cost:** **`FREE (100% OFF)`**',
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-          ].join('\n'))
-          .setFooter({ text: 'GAMING SHAMING • Instant Freebie Alerts' })
-          .setTimestamp();
+        if (!inDb && !inChannel) {
+          const promo = freeNow.promotions.promotionalOffers[0].promotionalOffers[0];
+          const expiry = new Date(promo.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const imgObj = freeNow.keyImages?.find(i => i.type === 'OfferImageWide' || i.type === 'DieselStoreFrontWide') || freeNow.keyImages?.[0];
+          const pageSlug = freeNow.productSlug || freeNow.urlSlug || freeNow.offerMappings?.[0]?.pageSlug || '';
+          const storeUrl = `https://store.epicgames.com/en-US/p/${pageSlug}`;
 
-        if (imgObj) embed.setImage(imgObj.url);
+          const embed = new EmbedBuilder()
+            .setColor(0x10B981)
+            .setAuthor({ name: 'GAMER GEAR // FREE GAME ALERT' })
+            .setTitle(`🎁 100% FREE TO KEEP: ${freeNow.title.toUpperCase()}`)
+            .setDescription([
+              `> *"${freeNow.description || 'Grab this game for free on the Epic Games Store!'}"*`,
+              '',
+              '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+              '• **Platform:** `Epic Games Store`',
+              `• **Offer Validity:** Claim before \`${expiry}\``,
+              '• **Cost:** **`FREE (100% OFF)`**',
+              '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+            ].join('\n'))
+            .setFooter({ text: 'GAMING SHAMING • Instant Freebie Alerts' })
+            .setTimestamp();
 
-        const claimBtn = new ButtonBuilder()
-          .setLabel('🎮 Claim Free on Epic Games Store')
-          .setStyle(ButtonStyle.Link)
-          .setURL(storeUrl);
+          if (imgObj) embed.setImage(imgObj.url);
 
-        const row = new ActionRowBuilder().addComponents(claimBtn);
-        const sent = await updateCh.send({ embeds: [embed], components: [row] });
-        db.recordAutomationFeed('free_games', freeNow.id, freeNow.title, freeNow, updateCh.id, sent.id);
-        console.log(`[DEALS_POLL] Published new Epic free game: ${freeNow.title}`);
+          const claimBtn = new ButtonBuilder()
+            .setLabel('🎮 Claim Free on Epic Games Store')
+            .setStyle(ButtonStyle.Link)
+            .setURL(storeUrl);
+
+          const row = new ActionRowBuilder().addComponents(claimBtn);
+          const sent = await updateCh.send({ embeds: [embed], components: [row] });
+          db.recordAutomationFeed('free_games', freeNow.id, freeNow.title, freeNow, updateCh.id, sent.id);
+          console.log(`[DEALS_POLL] Published new Epic free game: ${freeNow.title}`);
+        } else if (!inDb) {
+          db.recordAutomationFeed('free_games', freeNow.id, freeNow.title, freeNow, updateCh.id, 'channel_duplicate');
+        }
       }
     } catch (e) {
       console.warn('[DEALS_POLL] Error fetching Epic free games:', e.message);
@@ -1685,40 +1697,49 @@ async function pollLiveGameDeals(guild) {
       const steamData = await steamRes.json();
       const topSpecial = (steamData.specials?.items || [])[0];
 
-      if (topSpecial && !db.hasAutomationFeed('steam_deals', `app_${topSpecial.id}`)) {
-        const salePrice = (topSpecial.final_price / 100).toFixed(2);
-        const origPrice = (topSpecial.original_price / 100).toFixed(2);
-        const storeUrl = `https://store.steampowered.com/app/${topSpecial.id}/`;
+      if (topSpecial) {
+        const inDb = db.hasAutomationFeed('steam_deals', `app_${topSpecial.id}`);
+        const inChannel = recentMessages && recentMessages.some(m =>
+          m.embeds.some(e => e.title && e.title.toLowerCase().includes(topSpecial.name.toLowerCase()))
+        );
 
-        const embed = new EmbedBuilder()
-          .setColor(0x00F0FF)
-          .setAuthor({ name: 'GAMER GEAR // STEAM INTELLIGENCE FEED' })
-          .setTitle(`🔥 STEAM DEAL: ${topSpecial.name.toUpperCase()} (-${topSpecial.discount_percent}%)`)
-          .setDescription([
-            'Special promotion detected on the Steam Store:\n',
-            `• **Discount:** \`-${topSpecial.discount_percent}% OFF\``,
-            `• **Original Price:** ~~\`${origPrice} ${topSpecial.currency}\`~~`,
-            `• **Sale Price:** **\`${salePrice} ${topSpecial.currency}\`**`,
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-          ].join('\n'))
-          .setImage(topSpecial.header_image)
-          .setFooter({ text: 'GAMING SHAMING • Steam Bargain Hunter' })
-          .setTimestamp();
+        if (!inDb && !inChannel) {
+          const salePrice = (topSpecial.final_price / 100).toFixed(2);
+          const origPrice = (topSpecial.original_price / 100).toFixed(2);
+          const storeUrl = `https://store.steampowered.com/app/${topSpecial.id}/`;
 
-        const storeBtn = new ButtonBuilder()
-          .setLabel('🛒 View Deal on Steam Store')
-          .setStyle(ButtonStyle.Link)
-          .setURL(storeUrl);
+          const embed = new EmbedBuilder()
+            .setColor(0x00F0FF)
+            .setAuthor({ name: 'GAMER GEAR // STEAM INTELLIGENCE FEED' })
+            .setTitle(`🔥 STEAM DEAL: ${topSpecial.name.toUpperCase()} (-${topSpecial.discount_percent}%)`)
+            .setDescription([
+              'Special promotion detected on the Steam Store:\n',
+              `• **Discount:** \`-${topSpecial.discount_percent}% OFF\``,
+              `• **Original Price:** ~~\`${origPrice} ${topSpecial.currency}\`~~`,
+              `• **Sale Price:** **\`${salePrice} ${topSpecial.currency}\`**`,
+              '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+            ].join('\n'))
+            .setImage(topSpecial.header_image)
+            .setFooter({ text: 'GAMING SHAMING • Steam Bargain Hunter' })
+            .setTimestamp();
 
-        const steamDbBtn = new ButtonBuilder()
-          .setLabel('📊 SteamDB Price History')
-          .setStyle(ButtonStyle.Link)
-          .setURL(`https://steamdb.info/app/${topSpecial.id}/`);
+          const storeBtn = new ButtonBuilder()
+            .setLabel('🛒 View Deal on Steam Store')
+            .setStyle(ButtonStyle.Link)
+            .setURL(storeUrl);
 
-        const row = new ActionRowBuilder().addComponents(storeBtn, steamDbBtn);
-        const sent = await updateCh.send({ embeds: [embed], components: [row] });
-        db.recordAutomationFeed('steam_deals', `app_${topSpecial.id}`, topSpecial.name, topSpecial, updateCh.id, sent.id);
-        console.log(`[DEALS_POLL] Published new Steam deal: ${topSpecial.name}`);
+          const steamDbBtn = new ButtonBuilder()
+            .setLabel('📊 SteamDB Price History')
+            .setStyle(ButtonStyle.Link)
+            .setURL(`https://steamdb.info/app/${topSpecial.id}/`);
+
+          const row = new ActionRowBuilder().addComponents(storeBtn, steamDbBtn);
+          const sent = await updateCh.send({ embeds: [embed], components: [row] });
+          db.recordAutomationFeed('steam_deals', `app_${topSpecial.id}`, topSpecial.name, topSpecial, updateCh.id, sent.id);
+          console.log(`[DEALS_POLL] Published new Steam deal: ${topSpecial.name}`);
+        } else if (!inDb) {
+          db.recordAutomationFeed('steam_deals', `app_${topSpecial.id}`, topSpecial.name, topSpecial, updateCh.id, 'channel_duplicate');
+        }
       }
     } catch (e) {
       console.warn('[DEALS_POLL] Error fetching Steam specials:', e.message);
