@@ -58,7 +58,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates
   ],
   partials: [Partials.Channel]
 });
@@ -1458,6 +1459,81 @@ client.on('messageCreate', async msg => {
   }
 });
 
+// Auto-Voice ("Join to Create") temporary squad voice channels tracking
+const tempVoiceChannels = new Set();
+
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  try {
+    const member = newState.member;
+    const guild = newState.guild || oldState.guild;
+    if (!guild || !member || member.user.bot) return;
+
+    // 1. User joins the "Join to Create" generator channel
+    if (newState.channel && (newState.channel.name.includes('Click to Create') || newState.channel.name.includes('Join to Create'))) {
+      const parentCategory = newState.channel.parent;
+      const cleanName = member.displayName.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'Gamer';
+      
+      const tempChannel = await guild.channels.create({
+        name: `🎮・${cleanName}'s Squad`,
+        type: ChannelType.GuildVoice,
+        parent: parentCategory ? parentCategory.id : undefined,
+        permissionOverwrites: [
+          {
+            id: member.id,
+            allow: [
+              PermissionsBitField.Flags.ManageChannels,
+              PermissionsBitField.Flags.MoveMembers,
+              PermissionsBitField.Flags.Connect,
+              PermissionsBitField.Flags.Speak
+            ]
+          }
+        ],
+        reason: `Auto-Voice dynamic squad channel for ${member.displayName}`
+      });
+
+      tempVoiceChannels.add(tempChannel.id);
+      console.log(`[AUTO_VOICE] Created temporary VC "${tempChannel.name}" (${tempChannel.id}) for ${member.displayName}`);
+
+      // Move member into their new temporary channel
+      await member.voice.setChannel(tempChannel);
+
+      // Send squad owner guidance in the voice channel text chat
+      setTimeout(async () => {
+        try {
+          const welcomeEmbed = new EmbedBuilder()
+            .setColor(0x00F0FF)
+            .setTitle(`🎮 Welcome to your squad room, ${member.displayName}!`)
+            .setDescription([
+              'You have been granted **Manage Channel** controls for this room:',
+              '• Click the **⚙️ Edit Channel** icon to rename your room or set a user limit (e.g. 2 for Duo, 3 for Trio).',
+              '• This room will **automatically delete** when everyone leaves.',
+              '',
+              'Have fun and game on! 🚀'
+            ].join('\n'))
+            .setFooter({ text: 'GAMER GEAR // Auto-Voice Engine' });
+
+          await tempChannel.send({ embeds: [welcomeEmbed] }).catch(() => {});
+        } catch (_) {}
+      }, 1000);
+    }
+
+    // 2. User leaves a temporary channel
+    if (oldState.channel && tempVoiceChannels.has(oldState.channel.id)) {
+      const oldCh = oldState.channel;
+      // If no members are left in the temporary channel, delete it
+      if (oldCh.members.size === 0) {
+        tempVoiceChannels.delete(oldCh.id);
+        console.log(`[AUTO_VOICE] Deleting empty temporary VC "${oldCh.name}" (${oldCh.id})`);
+        await oldCh.delete('Temporary Auto-Voice channel empty').catch(err => {
+          console.warn(`[AUTO_VOICE] Could not delete empty VC:`, err.message);
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[AUTO_VOICE_ERROR]', err);
+  }
+});
+
 client.once('clientReady', async () => {
   console.log(`[Verification & Games] Logged in as ${client.user.tag}`);
   console.log(`[STARTUP] Bot connected to Discord. Guild ID target: ${guildId}`);
@@ -1480,6 +1556,36 @@ client.once('clientReady', async () => {
     // Start automated Steam & Epic deals polling (every 2 hours)
     setTimeout(() => pollLiveGameDeals(guild), 15 * 1000);
     setInterval(() => pollLiveGameDeals(guild), 2 * 60 * 60 * 1000);
+
+    // Auto-Voice: Ensure generator channel exists and clean up any orphaned empty squad rooms
+    try {
+      const gamingCat = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && (c.name.includes('GAMING') || c.id === '1567553467357204560'));
+      const existingGenerator = guild.channels.cache.find(c => c.type === ChannelType.GuildVoice && (c.name.includes('Click to Create') || c.name.includes('Join to Create')));
+      if (!existingGenerator && gamingCat) {
+        await guild.channels.create({
+          name: '➕・Click to Create VC',
+          type: ChannelType.GuildVoice,
+          parent: gamingCat.id,
+          userLimit: 1,
+          reason: 'Auto-Voice generator channel'
+        });
+        console.log(`[AUTO_VOICE] Master generator channel created in ${gamingCat.name}`);
+      }
+
+      // Cleanup any empty squad rooms left from prior restart
+      const orphanSquads = guild.channels.cache.filter(c =>
+        c.type === ChannelType.GuildVoice &&
+        c.name.startsWith('🎮・') &&
+        c.name.endsWith('Squad') &&
+        c.members.size === 0
+      );
+      for (const [, orphan] of orphanSquads) {
+        await orphan.delete('Cleanup empty squad voice channel on startup').catch(() => {});
+        console.log(`[AUTO_VOICE] Cleaned up orphaned squad channel: ${orphan.name}`);
+      }
+    } catch (voiceErr) {
+      console.warn('[AUTO_VOICE] Startup setup warning:', voiceErr.message);
+    }
 
     console.log(`[STARTUP] Bot startup complete. Ready to receive events.`);
   } catch (err) {
