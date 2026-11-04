@@ -2079,10 +2079,10 @@ async function pollPCHardwareDeals(guild) {
           if (/Top 5|Threads Today|Daily Rewards|Channel photo|Channel created/i.test(fullText)) continue;
           if (/kurta|dress|saree|shampoo|dinner set|facial tissue|sauce pan|suitcase|trolley|refrigerator|shoes|sneakers|deodorant|jeans|shirt|pants|underwear|bra|towel|blanket/i.test(fullText)) continue;
 
-          // 1. Discount filter: Strict >= 45% OFF
+          // 1. Discount filter: Strict >= 60% OFF
           const pctMatch = fullText.match(/(\d+)%\s*(?:off|discount)/i) || fullText.match(/(?:off|discount)[:\s]*(\d+)%/i);
           const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
-          if (!pct || pct < 45) continue;
+          if (!pct || pct < 60) continue;
 
           // 2. Tech / Gaming hardware filter
           const techRegex = /\b(pc|gaming|laptop|keyboard|mouse|headset|headphone|earbuds|monitor|gpu|cpu|ram|ssd|nvme|motherboard|controller|oled|ips|qled|soundbar|speaker|tv|logitech|razer|zebronics|aoc|corsair|lenovo|asus|acer|msi|hp|dell|ryzen|intel|rtx)\b/i;
@@ -2131,7 +2131,7 @@ async function pollPCHardwareDeals(guild) {
               .setAuthor({ name: `GAMER GEAR // INDIA GAMING RADAR • [${store.toUpperCase()}]`, iconURL: storeIcon })
               .setTitle(`🔥 [${store} • ${pct}% OFF] ${cleanTitle}`)
               .setDescription([
-                `Verified **45%+ discount** on gaming gear & PC components:`,
+                `Verified **60%+ discount** on gaming gear & PC components:`,
                 '',
                 '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
                 `• 💰 **Deal Price:** \`₹${price}\``,
@@ -2144,7 +2144,7 @@ async function pollPCHardwareDeals(guild) {
                 '',
                 '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
               ].join('\n'))
-              .setFooter({ text: 'GAMING SHAMING • India PC Gear Radar (Min 45% OFF)' })
+              .setFooter({ text: 'GAMING SHAMING • India PC Gear Radar (Min 60% OFF)' })
               .setTimestamp();
 
             const row = new ActionRowBuilder().addComponents(
