@@ -2,7 +2,7 @@
   "name": "gear-bot",
   "version": "1.0.0",
   "description": "Gamer Gear: All-in-one Discord gaming community bot with native onboarding integration, verification wall, and profile progression",
-  "main": "dist/index.js",
+  "main": "index.js",
   "type": "module",
   "bin": {
     "discord-mcp": "./dist/index.js",
@@ -12,7 +12,7 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "prestart": "npm run build",
-    "start": "node discord-gaming-verification/src/index.js",
+    "start": "node index.js",
     "start:bot": "node discord-gaming-verification/src/index.js",
     "start:mcp": "node dist/index.js",
     "start:http": "node dist/http-server.js",
