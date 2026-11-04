@@ -144,7 +144,8 @@ function scheduleTimers(guild, userId) {
 }
 
 /**
- * Public onboarding greeting in #verify with the Start Verification button
+ * Public onboarding greeting directing members from onboarding destination to #verify,
+ * with the Start Verification button in #verify.
  */
 async function begin(member) {
   const guild = member.guild;
@@ -156,7 +157,24 @@ async function begin(member) {
 
   const verifyCh = guild.channels.cache.find(c => c.name === names.verify);
   const rulesCh = guild.channels.cache.find(c => c.name === names.rules);
+  const welcomeCh = guild.channels.cache.find(c => c.name === 'welcome');
 
+  // 1. Direct member from the onboarding destination (#welcome) to #verify
+  if (welcomeCh && welcomeCh.isTextBased() && verifyCh) {
+    const jumpRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setStyle(ButtonStyle.Link)
+        .setLabel('🛡️ Go to #verify')
+        .setURL(`https://discord.com/channels/${guild.id}/${verifyCh.id}`)
+    );
+    await welcomeCh.send({
+      content: `👋 Welcome <@${member.id}>! You've completed server onboarding.\n👉 **Next Step:** Head over to <#${verifyCh.id}> and click **Start Verification** to complete your Game Gear verification and unlock full access!`,
+      components: [jumpRow],
+      allowedMentions: { parse: [], users: [member.id] }
+    }).catch(() => {});
+  }
+
+  // 2. Greeting in #verify with Start Verification button
   if (verifyCh && verifyCh.isTextBased()) {
     const welcome = buildPublicVerifyWelcome(rulesCh ? rulesCh.id : undefined);
     await verifyCh.send({
@@ -548,6 +566,11 @@ client.on('guildMemberUpdate', (oldMember, newMember) => {
     console.log(`[MEMBER_PENDING_TRANSITION] Member ${newMember.user.tag} completed rules screening.`);
     db.recordScreeningEvent(newMember.id, guildId, 'screening_passed', true, false, { completion_stage: 'rules_screening_complete' });
     db.logAudit('NATIVE_SCREENING_PASSED', `User ${newMember.user.tag} accepted rules.`, newMember.id);
+
+    if (hasCompletedNativeOnboarding(newMember)) {
+      console.log(`[ONBOARDING_TRANSITION] Member ${newMember.user.tag} accepted rules and already answered onboarding questions. Triggering Game Gear verification.`);
+      begin(newMember).catch(console.error);
+    }
   }
 
   // Detect completion of Discord's 3 Native Onboarding Questions:
@@ -555,7 +578,7 @@ client.on('guildMemberUpdate', (oldMember, newMember) => {
   const hadOnboarding = hasCompletedNativeOnboarding(oldMember);
   const hasOnboarding = hasCompletedNativeOnboarding(newMember);
 
-  if (!hadOnboarding && hasOnboarding) {
+  if (!hadOnboarding && hasOnboarding && !isPending) {
     console.log(`[ONBOARDING_COMPLETED] Member ${newMember.user.tag} completed Discord native onboarding questions! Triggering Game Gear verification.`);
     db.recordScreeningEvent(newMember.id, guildId, 'onboarding_questions_completed', true, false, { completion_stage: 'native_onboarding_questions_complete' });
     db.logAudit('NATIVE_ONBOARDING_COMPLETED', `User ${newMember.user.tag} answered native onboarding questions.`, newMember.id);
@@ -660,11 +683,24 @@ client.on('interactionCreate', async interaction => {
         if (!session.answers.experiences || session.answers.experiences.length === 0) {
           session.answers.experiences = detected.experiences;
         }
-        if (!session.step || session.step === 'games' || session.step === 'agree') {
-          session.step = 'detected';
-          db.updateVerificationSession(guildId, userId, { step: 'detected', answers: session.answers });
+        if (!session.answers.looking_preferences || session.answers.looking_preferences.length === 0) {
+          const mappedLooking = [];
+          if (detected.experiences.includes('Competitive')) mappedLooking.push('Ranked squad');
+          if (detected.experiences.includes('Casual')) mappedLooking.push('Casual friends');
+          if (detected.experiences.includes('Co-op')) mappedLooking.push('Co-op');
+          if (detected.experiences.includes('Social gaming')) mappedLooking.push('Chill VC');
+          if (mappedLooking.length > 0) {
+            session.answers.looking_preferences = mappedLooking;
+            session.answers.looking = mappedLooking.join(', ');
+          }
         }
       }
+
+      // Resume existing step if in progress, otherwise start directly at Step 1 of 6 (Age Classification)
+      if (!session.step || session.step === 'agree' || session.step === 'detected' || session.step === 'not started') {
+        session.step = 'age';
+      }
+      db.updateVerificationSession(guildId, userId, { step: session.step, answers: session.answers });
 
       const payload = getStepPayload(session, interaction.guild);
       await safeEditOrReply(interaction, payload);
@@ -838,7 +874,7 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Step 2: Gender
+    // Step 2: Gender -> transitions to Step 3: Games
     if (customId.startsWith('verify_gender_')) {
       await safeAcknowledge(interaction, 'update');
       const gChoice = customId.replace('verify_gender_', '');
@@ -851,8 +887,13 @@ client.on('interactionCreate', async interaction => {
       } else if (gChoice === 'nb') {
         s.answers.gender = 'Non-binary';
       }
-      db.updateVerificationSession(guildId, userId, { step: 'timing', answers: s.answers });
-      await safeEditOrReply(interaction, buildStepTimingPayload(s.answers.timing, s.answers.timezone));
+      db.updateVerificationSession(guildId, userId, { step: 'games', answers: s.answers });
+      const allGames = [
+        ...db.getGamesByCategory('fps_competitive'),
+        ...db.getGamesByCategory('survival_sandbox'),
+        ...db.getGamesByCategory('coop_horror')
+      ];
+      await safeEditOrReply(interaction, buildStepGamesPayload(s.answers.games || [], allGames));
       return;
     }
 
