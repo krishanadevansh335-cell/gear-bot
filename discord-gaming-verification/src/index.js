@@ -45,7 +45,7 @@ import {
   buildOnboardingExperiencePayload
 } from '../../dist/verification-ui.js';
 import {
-  IDS, BUILD_PRESETS, buildPresetEmbed, buildMarketModal, formatMarketEmbed
+  IDS, BUILD_PRESETS, buildPresetEmbed, buildPresetButtons, buildMarketModal, formatMarketEmbed
 } from './gear-features.js';
 
 const token = process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || process.env.TOKEN;
@@ -870,7 +870,8 @@ client.on('interactionCreate', async interaction => {
       const key = customId.replace('build_preset_', '');
       const embed = buildPresetEmbed(key);
       if (embed) {
-        await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+        const row = buildPresetButtons(key);
+        await safeEditOrReply(interaction, { embeds: [embed], components: [row] });
       } else {
         await safeEditOrReply(interaction, { content: 'Build preset not found.', components: [] });
       }
@@ -1646,7 +1647,8 @@ client.on('interactionCreate', async interaction => {
     const budget = interaction.options.getString('budget') || '50k';
     const embed = buildPresetEmbed(budget);
     if (embed) {
-      await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+      const row = buildPresetButtons(budget);
+      await safeEditOrReply(interaction, { embeds: [embed], components: [row] });
     } else {
       await safeEditOrReply(interaction, { content: 'Please select a valid budget preset: 30k, 50k, 80k, 120k, 200k', components: [] });
     }
