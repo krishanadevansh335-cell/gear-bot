@@ -2003,7 +2003,7 @@ async function pollLiveGameDeals(guild) {
 
     // 1. Epic Games Free Promotions
     try {
-      const epicRes = await fetch('https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US');
+      const epicRes = await fetch('https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=IN&allowCountries=IN');
       const epicData = await epicRes.json();
       const elements = epicData.data?.Catalog?.searchStore?.elements || [];
       const freeNow = elements.find(g => {
@@ -2034,6 +2034,7 @@ async function pollLiveGameDeals(guild) {
               '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
               '• **Platform:** `Epic Games Store`',
               `• **Offer Validity:** Claim before \`${expiry}\``,
+              `• **Regular Price:** ~~\`${freeNow.price?.totalPrice?.fmtPrice?.originalPrice || '₹899.00'}\`~~`,
               '• **Cost:** **`FREE (100% OFF)`**',
               '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
             ].join('\n'))
@@ -2061,7 +2062,7 @@ async function pollLiveGameDeals(guild) {
 
     // 2. Steam Top Special Deal
     try {
-      const steamRes = await fetch('https://store.steampowered.com/api/featuredcategories/?l=english');
+      const steamRes = await fetch('https://store.steampowered.com/api/featuredcategories/?cc=in&l=english');
       const steamData = await steamRes.json();
       const topSpecial = (steamData.specials?.items || [])[0];
 
@@ -2072,19 +2073,23 @@ async function pollLiveGameDeals(guild) {
         );
 
         if (!inDb && !inChannel) {
-          const salePrice = (topSpecial.final_price / 100).toFixed(2);
-          const origPrice = (topSpecial.original_price / 100).toFixed(2);
+          const salePrice = (topSpecial.final_price / 100).toFixed(0);
+          const origPrice = (topSpecial.original_price / 100).toFixed(0);
           const storeUrl = `https://store.steampowered.com/app/${topSpecial.id}/`;
 
           const embed = new EmbedBuilder()
             .setColor(0x00F0FF)
-            .setAuthor({ name: 'GAMER GEAR // STEAM INTELLIGENCE FEED' })
+            .setAuthor({ 
+              name: 'GAMER GEAR // STEAM INDIA DEALS', 
+              iconURL: 'https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg' 
+            })
             .setTitle(`🔥 STEAM DEAL: ${topSpecial.name.toUpperCase()} (-${topSpecial.discount_percent}%)`)
             .setDescription([
-              'Special promotion detected on the Steam Store:\n',
+              'Special promotion detected on the Steam India Store:\n',
+              '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
               `• **Discount:** \`-${topSpecial.discount_percent}% OFF\``,
-              `• **Original Price:** ~~\`${origPrice} ${topSpecial.currency}\`~~`,
-              `• **Sale Price:** **\`${salePrice} ${topSpecial.currency}\`**`,
+              `• **Original Price:** ~~\`₹${origPrice}\`~~`,
+              `• **Sale Price:** **\`₹${salePrice} INR\`**`,
               '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
             ].join('\n'))
             .setImage(topSpecial.header_image)
