@@ -2186,40 +2186,69 @@ async function pollLiveGameDeals(guild) {
       console.warn('[DEALS_POLL] Error fetching Epic free games:', e.message);
     }
 
-    // 2. Steam Top Special Deal
+    // 2. Steam Deep Deals (Strictly 60% to 90%+ OFF)
     try {
-      const steamRes = await fetch('https://store.steampowered.com/api/featuredcategories/?cc=in&l=english');
+      const steamSearchUrl = 'https://store.steampowered.com/search/results/?query&start=0&count=50&dynamic_data=&sort_by=_ASC&filter=topsellers&specials=1&infinite=1&cc=in&l=english';
+      const steamRes = await fetch(steamSearchUrl);
       const steamData = await steamRes.json();
-      const topSpecial = (steamData.specials?.items || [])[0];
+      const html = steamData.results_html || '';
+      
+      const items = html.split('<a href="https://store.steampowered.com/app/').slice(1);
+      const deepDeals = [];
 
-      if (topSpecial) {
-        const inDb = db.hasAutomationFeed('steam_deals', `app_${topSpecial.id}`);
+      for (const item of items) {
+        const appIdMatch = item.match(/^(\d+)\//);
+        const titleMatch = item.match(/<span class="title">([^<]+)<\/span>/);
+        const discountMatch = item.match(/data-discount="(\d+)"/);
+        const origPriceMatch = item.match(/<div class="discount_original_price">([^<]+)<\/div>/);
+        const finalPriceMatch = item.match(/<div class="discount_final_price">([^<]+)<\/div>/);
+
+        if (appIdMatch && titleMatch && discountMatch && origPriceMatch && finalPriceMatch) {
+          const discount = parseInt(discountMatch[1], 10);
+          // Strict threshold: at least 60% to 70%+ OFF
+          if (discount >= 60) {
+            deepDeals.push({
+              id: appIdMatch[1],
+              name: titleMatch[1].trim(),
+              discount_percent: discount,
+              origPrice: origPriceMatch[1].trim(),
+              salePrice: finalPriceMatch[1].trim(),
+              header_image: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appIdMatch[1]}/header.jpg`
+            });
+          }
+        }
+      }
+
+      // Sort by highest discount descending (90%, 85%, 80%, 75%...)
+      deepDeals.sort((a, b) => b.discount_percent - a.discount_percent);
+
+      for (const deal of deepDeals) {
+        const inDb = db.hasAutomationFeed('steam_deals', `app_${deal.id}`);
         const inChannel = recentMessages && recentMessages.some(m =>
-          m.embeds.some(e => e.title && e.title.toLowerCase().includes(topSpecial.name.toLowerCase()))
+          m.embeds.some(e => e.title && e.title.toLowerCase().includes(deal.name.toLowerCase()))
         );
 
         if (!inDb && !inChannel) {
-          const salePrice = (topSpecial.final_price / 100).toFixed(0);
-          const origPrice = (topSpecial.original_price / 100).toFixed(0);
-          const storeUrl = `https://store.steampowered.com/app/${topSpecial.id}/`;
+          const storeUrl = `https://store.steampowered.com/app/${deal.id}/`;
 
           const embed = new EmbedBuilder()
             .setColor(0x00F0FF)
             .setAuthor({ 
-              name: 'GAMER GEAR // STEAM INDIA DEALS', 
+              name: `GAMER GEAR // STEAM INDIA LOOT SALE • ${deal.discount_percent}% OFF`, 
               iconURL: 'https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg' 
             })
-            .setTitle(`🔥 STEAM DEAL: ${topSpecial.name.toUpperCase()} (-${topSpecial.discount_percent}%)`)
+            .setTitle(`🔥 MASSIVE DEAL: ${deal.name.toUpperCase()} (-${deal.discount_percent}% OFF)`)
             .setDescription([
-              'Special promotion detected on the Steam India Store:\n',
+              '⚡ **Huge AAA discount detected on Steam India Store!**\n',
               '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-              `• **Discount:** \`-${topSpecial.discount_percent}% OFF\``,
-              `• **Original Price:** ~~\`₹${origPrice}\`~~`,
-              `• **Sale Price:** **\`₹${salePrice} INR\`**`,
+              `• 🏷️ **Discount:** **\`-${deal.discount_percent}% OFF\`** (Deep Sale)`,
+              `• 💸 **Original Price:** ~~\`${deal.origPrice}\`~~`,
+              `• 💰 **Sale Price:** **\`${deal.salePrice} INR\`**`,
+              `• 🇮🇳 **Store Region:** Steam India Store (Strict INR)`,
               '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
             ].join('\n'))
-            .setImage(topSpecial.header_image)
-            .setFooter({ text: 'GAMING SHAMING • Steam Bargain Hunter' })
+            .setImage(deal.header_image)
+            .setFooter({ text: 'GAMING SHAMING • Verified 60%+ Game Deals' })
             .setTimestamp();
 
           const storeBtn = new ButtonBuilder()
@@ -2230,14 +2259,15 @@ async function pollLiveGameDeals(guild) {
           const steamDbBtn = new ButtonBuilder()
             .setLabel('📊 SteamDB Price History')
             .setStyle(ButtonStyle.Link)
-            .setURL(`https://steamdb.info/app/${topSpecial.id}/`);
+            .setURL(`https://steamdb.info/app/${deal.id}/`);
 
           const row = new ActionRowBuilder().addComponents(storeBtn, steamDbBtn);
           const sent = await updateCh.send({ embeds: [embed], components: [row] });
-          db.recordAutomationFeed('steam_deals', `app_${topSpecial.id}`, topSpecial.name, topSpecial, updateCh.id, sent.id);
-          console.log(`[DEALS_POLL] Published new Steam deal: ${topSpecial.name}`);
+          db.recordAutomationFeed('steam_deals', `app_${deal.id}`, deal.name, deal, updateCh.id, sent.id);
+          console.log(`[DEALS_POLL] Published verified 60%+ Steam deal: ${deal.name} (-${deal.discount_percent}%)`);
+          break; // Post one top deal per cycle to avoid flooding
         } else if (!inDb) {
-          db.recordAutomationFeed('steam_deals', `app_${topSpecial.id}`, topSpecial.name, topSpecial, updateCh.id, 'channel_duplicate');
+          db.recordAutomationFeed('steam_deals', `app_${deal.id}`, deal.name, deal, updateCh.id, 'channel_duplicate');
         }
       }
     } catch (e) {
