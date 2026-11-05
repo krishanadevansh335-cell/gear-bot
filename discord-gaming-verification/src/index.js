@@ -47,6 +47,18 @@ import {
 import {
   IDS, BUILD_PRESETS, buildPresetEmbed, buildPresetButtons, buildMarketModal, formatMarketEmbed
 } from './gear-features.js';
+import {
+  handleChatXp,
+  buildRankCard,
+  buildLeaderboardCard,
+  evaluateRig,
+  handleClipPost,
+  handleMarketplaceMessage,
+  getRandomTrivia,
+  buildTriviaPayload,
+  TRIVIA_QUESTIONS,
+  RANK_ROLES
+} from './community-upgrades.js';
 
 const token = process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || process.env.TOKEN;
 const guildId = process.env.DISCORD_GUILD_ID || process.env.GUILD_ID || process.env.SERVER_ID || process.env.DISCORD_SERVER_ID || '924325170972340264';
@@ -112,7 +124,20 @@ const baseCommands = [
     .setName('crown-king')
     .setDescription('Award the official Battlestation King role to a member.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
-    .addUserOption(opt => opt.setName('user').setDescription('The member to crown as Battlestation King').setRequired(true))
+    .addUserOption(opt => opt.setName('user').setDescription('The member to crown as Battlestation King').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('check-rig')
+    .setDescription('Evaluate PSU wattage requirements and potential CPU/GPU bottlenecks.')
+    .addStringOption(opt => opt.setName('cpu').setDescription('Processor model (e.g. Ryzen 7600 or i5-13400F)').setRequired(true))
+    .addStringOption(opt => opt.setName('gpu').setDescription('Graphics card (e.g. RTX 4070 Super or RX 6600)').setRequired(true))
+    .addStringOption(opt => opt.setName('resolution').setDescription('Target gaming resolution').addChoices(
+      { name: '1080p Esports', value: '1080p' },
+      { name: '1440p Sweet Spot', value: '1440p' },
+      { name: '4K Native Enthusiast', value: '4k' }
+    )),
+  new SlashCommandBuilder()
+    .setName('trivia')
+    .setDescription('Start an instant gamer quiz round in this channel! (+50 XP for first correct answer)')
 ].map(x => x.toJSON());
 
 const gameCommandsList = buildGameCommands().map(x => x.toJSON());
@@ -874,6 +899,45 @@ client.on('interactionCreate', async interaction => {
         await safeEditOrReply(interaction, { embeds: [embed], components: [row] });
       } else {
         await safeEditOrReply(interaction, { content: 'Build preset not found.', components: [] });
+      }
+      return;
+    }
+
+    if (customId.startsWith('trivia_')) {
+      const parts = customId.split('_'); // trivia, qId, opt, optIdx
+      const qId = parseInt(parts[1], 10);
+      const optIdx = parseInt(parts[3], 10);
+      const trivia = TRIVIA_QUESTIONS[qId];
+      if (trivia) {
+        if (optIdx === trivia.answer) {
+          await safeAcknowledge(interaction, 'reply');
+          const xpRes = db.addXp(userId, 50);
+          const winEmbed = new EmbedBuilder()
+            .setColor(0x10B981)
+            .setAuthor({ name: 'CORRECT ANSWER! • GAMING TRIVIA WINNER', iconURL: interaction.user.displayAvatarURL() })
+            .setTitle(`🎉 <@${userId}> got it right! (+50 XP)`)
+            .setDescription([
+              `**Question:** ${trivia.q}`,
+              `**Correct Option:** **${trivia.options[trivia.answer]}**`,
+              '',
+              `💡 **Gaming Fact:** *${trivia.fact}*`,
+              `📈 **Level:** ${xpRes.level} (\`${xpRes.xp.toLocaleString()} XP\`)`
+            ].join('\n'))
+            .setFooter({ text: 'Next daily trivia drop coming soon • GAMING SHAMING' })
+            .setTimestamp();
+
+          try {
+            await interaction.message.edit({ components: [] });
+          } catch (_) {}
+
+          await safeEditOrReply(interaction, { embeds: [winEmbed] });
+        } else {
+          await safeAcknowledge(interaction, 'reply');
+          await safeEditOrReply(interaction, {
+            content: `❌ Nice try, but **Option ${['A','B','C','D'][optIdx]}** is incorrect! Someone else can still claim the +50 XP!`,
+            ephemeral: true
+          });
+        }
       }
       return;
     }
@@ -1759,6 +1823,45 @@ client.on('interactionCreate', async interaction => {
     }
     return;
   }
+
+  // ── Community Upgrades Slash Commands ──────────────────────────────────────
+  if (interaction.commandName === 'rank') {
+    await safeAcknowledge(interaction, 'reply');
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const profile = db.getMemberProfile(targetUser.id) || { user_id: targetUser.id, xp: 0, level: 1, reputation: 0 };
+    const leaderboard = db.getLeaderboard(100);
+    const rankIdx = leaderboard.findIndex(e => e.user_id === targetUser.id) + 1 || (leaderboard.length + 1);
+    const totalMembers = interaction.guild.memberCount || 30;
+    const embed = buildRankCard(targetUser, profile, rankIdx, totalMembers);
+    await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+    return;
+  }
+
+  if (interaction.commandName === 'leaderboard') {
+    await safeAcknowledge(interaction, 'reply');
+    const entries = db.getLeaderboard(10);
+    const embed = buildLeaderboardCard(entries, interaction.user.id);
+    await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+    return;
+  }
+
+  if (interaction.commandName === 'check-rig') {
+    await safeAcknowledge(interaction, 'reply');
+    const cpu = interaction.options.getString('cpu');
+    const gpu = interaction.options.getString('gpu');
+    const res = interaction.options.getString('resolution') || '1440p';
+    const embed = evaluateRig(cpu, gpu, res);
+    await safeEditOrReply(interaction, { embeds: [embed], components: [] });
+    return;
+  }
+
+  if (interaction.commandName === 'trivia') {
+    await safeAcknowledge(interaction, 'reply');
+    const trivia = getRandomTrivia();
+    const payload = buildTriviaPayload(trivia);
+    await safeEditOrReply(interaction, { embeds: [payload.embed], components: [payload.row] });
+    return;
+  }
 });
 
 // Message Router: Verification privacy guard & Rate My Setup auto-reactions
@@ -1807,6 +1910,23 @@ client.on('messageCreate', async msg => {
       }
     }
     return;
+  }
+
+  // Feature 3: Clips Highlights Auto-Voting & Thread Generator
+  if (msg.channel.id === '1567553530254983248' || msg.channel.name.includes('clips-')) {
+    await handleClipPost(msg);
+    return;
+  }
+
+  // Feature 5: Marketplace Anti-Scam Shield
+  if (msg.channel.id === IDS.MARKETPLACE_CHANNEL_ID || msg.channel.name.includes('arket')) {
+    await handleMarketplaceMessage(msg);
+    return;
+  }
+
+  // Feature 1: Gaming Activity XP (all non-bot messages in public community channels)
+  if (!msg.author.bot && msg.guild && msg.channel.name !== names.verify) {
+    await handleChatXp(msg, db);
   }
 
   if (msg.channel.name !== names.verify) return;
@@ -1958,6 +2078,10 @@ client.once('clientReady', async () => {
     // Automated PC Hardware & Gear Deals polling (every 1 hour)
     setTimeout(() => pollPCHardwareDeals(guild), 75 * 1000);
     setInterval(() => pollPCHardwareDeals(guild), 60 * 60 * 1000);
+
+    // Automated Daily 8:00 PM IST Gaming Trivia Quiz Drop (every 15 minutes)
+    setTimeout(() => checkDailyTriviaDrop(guild), 90 * 1000);
+    setInterval(() => checkDailyTriviaDrop(guild), 15 * 60 * 1000);
 
     // Auto-Voice: Ensure generator channel exists and clean up any orphaned empty squad rooms
     try {
@@ -2435,6 +2559,38 @@ async function pollPCHardwareDeals(guild) {
     }
   } catch (err) {
     console.warn('[INDIA_PC_DEALS_POLL_WARN]', err.message);
+  }
+}
+
+async function checkDailyTriviaDrop(guild) {
+  try {
+    const now = new Date();
+    // Convert to IST (UTC + 5:30)
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const istTime = new Date(utcTime + (3600000 * 5.5));
+    const istHours = istTime.getHours();
+    const todayStr = istTime.toISOString().split('T')[0];
+
+    // Trigger window: between 8:00 PM and 8:30 PM IST (20:00 - 20:30)
+    if (istHours === 20) {
+      const alreadyDropped = db.hasAutomationFeed('daily_trivia', todayStr);
+      if (!alreadyDropped) {
+        const gameChatCh = guild.channels.cache.get('1567553526429913241') || guild.channels.cache.find(c => c.name.includes('game-chat'));
+        if (gameChatCh && gameChatCh.isTextBased()) {
+          const trivia = getRandomTrivia();
+          const payload = buildTriviaPayload(trivia);
+          const sent = await gameChatCh.send({
+            content: '🎮 **DAILY GAMING TRIVIA DROP!** First member to click the correct answer wins **+50 XP**!',
+            embeds: [payload.embed],
+            components: [payload.row]
+          });
+          db.recordAutomationFeed('daily_trivia', todayStr, trivia.q, trivia, gameChatCh.id, sent.id);
+          console.log(`[DAILY_TRIVIA] Dropped trivia quiz for ${todayStr} in #${gameChatCh.name}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[DAILY_TRIVIA_WARN]', err.message);
   }
 }
 
