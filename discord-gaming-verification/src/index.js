@@ -2365,9 +2365,17 @@ async function pollRedditLfgFeed(guild) {
     const recentMessages = await redditLfgCh.messages.fetch({ limit: 25 }).catch(() => null);
 
     // Process newest unposted LFG post
-    for (const m of matches.slice(0, 5)) {
+    for (const m of matches.slice(0, 10)) {
       const id = (m.match(/<id>([\s\S]*?)<\/id>/)?.[1] || '').trim();
-      const title = (m.match(/<title>([\s\S]*?)<\/title>/)?.[1] || 'Looking for Squad').replace(/&amp;/g, '&');
+      const rawTitle = (m.match(/<title>([\s\S]*?)<\/title>/)?.[1] || 'Looking for Squad');
+      const title = rawTitle
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&#32;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .trim();
       const link = m.match(/<link href="([^"]+)"/)?.[1] || 'https://reddit.com';
       const author = (m.match(/<author><name>([\s\S]*?)<\/name>/)?.[1] || 'u/RedditGamer').replace('/u/', '');
 
@@ -2386,24 +2394,37 @@ async function pollRedditLfgFeed(guild) {
           .replace(/&amp;/g, '&')
           .replace(/&quot;/g, '"')
           .replace(/&#39;/g, "'")
+          .replace(/&#32;/g, ' ')
+          .replace(/&#x200B;/g, '')
+          .replace(/&nbsp;/g, ' ')
           .replace(/<[^>]+>/g, ' ')
+          .replace(/submitted by\s+.*?\[link\].*?\[comments\]/gi, '')
+          .replace(/\[link\]|\[comments\]/gi, '')
           .replace(/\s+/g, ' ')
           .trim()
           .slice(0, 300);
 
+        const isIndiaOrAsia = /\b(india|indian|mumbai|delhi|bangalore|hyderabad|singapore|sea|asia|ist|gmt\+5|apac)\b/i.test(`${title} ${textClean}`);
+        if (!isIndiaOrAsia) {
+          db.recordAutomationFeed('reddit_lfg', id, title, { author, link }, redditLfgCh.id, 'skipped_non_indian');
+          continue;
+        }
+        const hubName = `🇮🇳 r/GamerPals • [India / Asia Region]`;
+        const embedColor = 0x00F0FF;
+
         const embed = new EmbedBuilder()
-          .setColor(0xFF4500) // Reddit Orange
-          .setAuthor({ name: `r/GamerPals • Posted by u/${author}`, iconURL: 'https://www.redditstatic.com/desktop2x/img/favicon/android-icon-192x192.png' })
+          .setColor(embedColor)
+          .setAuthor({ name: hubName, iconURL: 'https://www.redditstatic.com/desktop2x/img/favicon/android-icon-192x192.png' })
           .setTitle(`📢 ${title}`)
           .setDescription([
             `> *"${textClean || 'Check the Reddit post for full details and games list!'}"*`,
             '',
             '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-            `• **Platform/Hub:** \`r/GamerPals\``,
+            `• **Platform/Hub:** \`${hubName}\``,
             `• **Author:** [\`u/${author}\`](https://reddit.com/user/${author})`,
             '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
           ].join('\n'))
-          .setFooter({ text: 'GAMING SHAMING • Live Reddit Matchmaking Feed' })
+          .setFooter({ text: 'GAMING SHAMING • Live Gamer Matchmaking Feed' })
           .setTimestamp();
 
         const row = new ActionRowBuilder().addComponents(
